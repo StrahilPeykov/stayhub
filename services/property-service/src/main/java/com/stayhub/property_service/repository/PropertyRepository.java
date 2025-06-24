@@ -12,9 +12,14 @@ import java.util.UUID;
 @Repository
 public interface PropertyRepository extends JpaRepository<Property, UUID> {
     
+    // Using Haversine formula - works with any PostgreSQL, no extensions needed
     @Query(value = "SELECT * FROM properties p WHERE " +
-           "earth_distance(ll_to_earth(p.latitude, p.longitude), " +
-           "ll_to_earth(:lat, :lon)) < :radius * 1000", nativeQuery = true)
+           "(6371 * acos(" +
+           "cos(radians(:lat)) * cos(radians(p.latitude)) * " +
+           "cos(radians(p.longitude) - radians(:lon)) + " +
+           "sin(radians(:lat)) * sin(radians(p.latitude))" +
+           ")) <= :radius", 
+           nativeQuery = true)
     List<Property> findPropertiesWithinRadius(@Param("lat") Double latitude, 
                                             @Param("lon") Double longitude, 
                                             @Param("radius") Double radiusInKm);
