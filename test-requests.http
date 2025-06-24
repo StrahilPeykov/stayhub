@@ -1,0 +1,29 @@
+### Create a property
+POST http://localhost:8081/api/properties
+Content-Type: application/json
+
+{
+  "name": "Grand Hotel Amsterdam",
+  "description": "Luxury hotel in the heart of Amsterdam",
+  "address": {
+    "street": "Dam Square 1",
+    "city": "Amsterdam",
+    "state": "North Holland",
+    "country": "Netherlands",
+    "zipCode": "1012JS"
+  },
+  "latitude": 52.3702,
+  "longitude": 4.8952,
+  "amenities": ["WiFi", "Pool", "Gym", "Restaurant", "Bar"],
+  "totalRooms": 150,
+  "basePrice": 250.00
+}
+
+### Get all properties
+GET http://localhost:8081/api/properties
+
+### Search by city
+GET http://localhost:8081/api/properties?city=Amsterdam
+
+### Search nearby (Amsterdam coordinates)
+GET http://localhost:8081/api/properties?lat=52.3702&lon=4.8952&radius=5

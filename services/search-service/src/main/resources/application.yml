@@ -1,0 +1,23 @@
+﻿spring:
+  application:
+    name: search-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/stayhub_
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.driver.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+server:
+  port: 8083
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
