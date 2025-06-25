@@ -1,23 +1,268 @@
-﻿spring:
+﻿# services/booking-service/src/main/resources/application.yml
+spring:
   application:
     name: booking-service
+  
+  # Database Configuration
   datasource:
-    url: jdbc:postgresql://localhost:5432/stayhub_
+    url: jdbc:postgresql://localhost:5432/stayhub_bookings
     username: postgres
     password: postgres
-    driver-class-name: org.postgresql.driver.Driver
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      pool-name: BookingServiceHikariPool
+  
+  # JPA Configuration
   jpa:
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
+    show-sql: false
+    open-in-view: false
+  
+  # Redis Configuration
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: redis123
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+  
+  # Cache Configuration
+  cache:
+    type: redis
+    redis:
+      time-to-live: 3600000 # 1 hour in milliseconds
+      cache-null-values: false
+  
+  # Kafka Configuration
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+    consumer:
+      group-id: booking-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.stayhub.booking.event,com.stayhub.property_service.event"
+    admin:
+      properties:
+        bootstrap.servers: localhost:9092
 
+# Server Configuration
 server:
   port: 8082
-
+  error:
+    include-message: always
+    include-binding-errors: always
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+  
+# Actuator Configuration
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus,circuitbreakers,ratelimiters
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+  management:
+    prometheus:
+      metrics:
+        export: true
+    distribution:
+      percentiles-histogram:
+        http:
+          server:
+            requests: true
+  tracing:
+    sampling:
+      probability: 1.0
+
+# Resilience4j Configuration
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 5s
+        failureRateThreshold: 50
+        eventConsumerBufferSize: 10
+        recordExceptions:
+          - org.springframework.web.client.HttpServerErrorException
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+        ignoreExceptions:
+          - com.stayhub.booking.exception.ResourceNotFoundException
+    instances:
+      property-service:
+        baseConfig: default
+        waitDurationInOpenState: 10s
+        failureRateThreshold: 60
+  
+  retry:
+    configs:
+      default:
+        maxAttempts: 3
+        waitDuration: 500
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - org.springframework.web.client.HttpServerErrorException
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+        ignoreExceptions:
+          - com.stayhub.booking.exception.ResourceNotFoundException
+    instances:
+      property-service:
+        baseConfig: default
+        maxAttempts: 3
+        waitDuration: 1000
+  
+  bulkhead:
+    configs:
+      default:
+        maxConcurrentCalls: 25
+        maxWaitDuration: 0
+    instances:
+      property-service:
+        baseConfig: default
+        maxConcurrentCalls: 10
+  
+  timelimiter:
+    configs:
+      default:
+        cancelRunningFuture: true
+        timeoutDuration: 3s
+    instances:
+      property-service:
+        baseConfig: default
+        timeoutDuration: 5s
+  
+  ratelimiter:
+    configs:
+      default:
+        registerHealthIndicator: true
+        limitForPeriod: 100
+        limitRefreshPeriod: 1s
+        timeoutDuration: 5s
+        eventConsumerBufferSize: 100
+    instances:
+      booking-creation:
+        baseConfig: default
+        limitForPeriod: 50
+        limitRefreshPeriod: 1s
+
+# Logging Configuration
+logging:
+  level:
+    com.stayhub.booking: DEBUG
+    org.springframework.web: INFO
+    org.springframework.data: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    io.github.resilience4j: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/booking-service.log
+    max-size: 10MB
+    max-history: 30
+
+# External Service Configuration
+services:
+  property:
+    url: http://localhost:8081
+    connect-timeout: 5000
+    read-timeout: 10000
+
+# API Documentation
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+  show-actuator: true
+
+# Custom Application Properties
+app:
+  booking:
+    max-days-advance: 365
+    max-booking-duration: 30
+    max-rooms-per-booking: 10
+    cancellation:
+      full-refund-days: 7
+      partial-refund-days: 3
+      partial-refund-percentage: 50
+
+---
+# Test Profile
+spring:
+  config:
+    activate:
+      on-profile: test
+  datasource:
+    url: jdbc:postgresql://localhost:5432/stayhub_bookings_test
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+  kafka:
+    bootstrap-servers: localhost:9092
+  cache:
+    type: simple
+
+---
+# Docker Profile
+spring:
+  config:
+    activate:
+      on-profile: docker
+  datasource:
+    url: jdbc:postgresql://postgres:5432/stayhub_bookings
+  data:
+    redis:
+      host: redis
+  kafka:
+    bootstrap-servers: kafka:29092
+  
+services:
+  property:
+    url: http://property-service:8081

@@ -4,7 +4,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/stayhub_properties
     username: postgres
-    password: 1234
+    password: postgres
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -13,7 +13,18 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
-    show-sql: true
+    show-sql: false
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+  cache:
+    type: redis
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
 server:
   port: 8081
@@ -22,4 +33,8 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    com.stayhub: DEBUG

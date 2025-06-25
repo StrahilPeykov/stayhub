@@ -64,13 +64,3 @@ public class Property {
         updatedAt = LocalDateTime.now();
     }
 }
-
-@Embeddable
-@Data
-class Address {
-    private String street;
-    private String city;
-    private String state;
-    private String country;
-    private String zipCode;
-}

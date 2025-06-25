@@ -1,8 +1,17 @@
-CREATE DATABASE stayhub_properties;
-CREATE DATABASE stayhub_bookings;
-CREATE DATABASE stayhub_users;
+CREATE DATABASE IF NOT EXISTS stayhub_properties;
+CREATE DATABASE IF NOT EXISTS stayhub_bookings;
+CREATE DATABASE IF NOT EXISTS stayhub_users;
+CREATE DATABASE IF NOT EXISTS stayhub_search;
 
--- Enable PostGIS extension for geo queries
+-- Enable UUID extension for all databases
 \c stayhub_properties;
-CREATE EXTENSION IF NOT EXISTS cube;
-CREATE EXTENSION IF NOT EXISTS earthdistance;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+\c stayhub_bookings;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+\c stayhub_users;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+\c stayhub_search;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

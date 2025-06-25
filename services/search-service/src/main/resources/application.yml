@@ -2,16 +2,28 @@
   application:
     name: search-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/stayhub_
+    url: jdbc:postgresql://localhost:5432/stayhub_search
     username: postgres
     password: postgres
-    driver-class-name: org.postgresql.driver.Driver
+    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  elasticsearch:
+    uris: http://localhost:9200
+    username: elastic
+    password: elastic
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: search-service
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
 
 server:
   port: 8083
