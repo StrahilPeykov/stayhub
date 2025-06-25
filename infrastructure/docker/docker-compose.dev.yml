@@ -3,7 +3,7 @@ services:
     image: postgis/postgis:17-3.4-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: 1234
       POSTGRES_DB: postgres
     ports:
       - "5432:5432"

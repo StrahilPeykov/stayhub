@@ -37,7 +37,6 @@ spring:
     redis:
       host: localhost
       port: 6379
-      password: redis123
       timeout: 2000ms
       lettuce:
         pool:
@@ -70,7 +69,7 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: "com.stayhub.booking.event,com.stayhub.property_service.event"
+        spring.json.trusted.packages: "com.stayhub.booking_service.event,com.stayhub.property_service.event"
     admin:
       properties:
         bootstrap.servers: localhost:9092
@@ -109,7 +108,7 @@ management:
     sampling:
       probability: 1.0
 
-# Resilience4j Configuration
+# Resilience4j Configuration - FIXED PACKAGE NAMES
 resilience4j:
   circuitbreaker:
     configs:
@@ -127,7 +126,7 @@ resilience4j:
           - java.util.concurrent.TimeoutException
           - java.io.IOException
         ignoreExceptions:
-          - com.stayhub.booking.exception.ResourceNotFoundException
+          - com.stayhub.booking_service.exception.ResourceNotFoundException
     instances:
       property-service:
         baseConfig: default
@@ -146,7 +145,7 @@ resilience4j:
           - java.util.concurrent.TimeoutException
           - java.io.IOException
         ignoreExceptions:
-          - com.stayhub.booking.exception.ResourceNotFoundException
+          - com.stayhub.booking_service.exception.ResourceNotFoundException
     instances:
       property-service:
         baseConfig: default
@@ -190,7 +189,7 @@ resilience4j:
 # Logging Configuration
 logging:
   level:
-    com.stayhub.booking: DEBUG
+    com.stayhub.booking_service: DEBUG
     org.springframework.web: INFO
     org.springframework.data: DEBUG
     org.hibernate.SQL: DEBUG

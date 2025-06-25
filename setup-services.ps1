@@ -49,7 +49,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/stayhub_${service.Replace('-service', 's')}
     username: postgres
-    password: postgres
+    password: 1234
     driver-class-name: org.postgresql.driver.Driver
   jpa:
     hibernate:

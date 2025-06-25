@@ -4,7 +4,7 @@
   datasource:
     url: jdbc:postgresql://localhost:5432/stayhub_users
     username: postgres
-    password: postgres
+    password: 1234
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
