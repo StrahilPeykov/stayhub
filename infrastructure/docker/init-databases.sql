@@ -1,9 +1,13 @@
-CREATE DATABASE IF NOT EXISTS stayhub_properties;
-CREATE DATABASE IF NOT EXISTS stayhub_bookings;
-CREATE DATABASE IF NOT EXISTS stayhub_users;
-CREATE DATABASE IF NOT EXISTS stayhub_search;
+-- Create databases for each microservice
+-- PostgreSQL syntax
 
--- Enable UUID extension for all databases
+-- Create databases
+CREATE DATABASE stayhub_properties;
+CREATE DATABASE stayhub_bookings;
+CREATE DATABASE stayhub_users;
+CREATE DATABASE stayhub_search;
+
+-- Connect to each database and enable UUID extension
 \c stayhub_properties;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
