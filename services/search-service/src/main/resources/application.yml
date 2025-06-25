@@ -1,35 +1,75 @@
 ﻿spring:
   application:
     name: search-service
+  
+  # Database Configuration
   datasource:
     url: jdbc:postgresql://localhost:5432/stayhub_search
     username: postgres
     password: 1234
     driver-class-name: org.postgresql.Driver
+  
+  # JPA Configuration  
   jpa:
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: false
+  
+  # Elasticsearch Configuration (no auth since security is disabled)
   elasticsearch:
     uris: http://localhost:9200
-    username: elastic
-    password: elastic
+    connection-timeout: 10s
+    socket-timeout: 60s
+  
+  # Kafka Configuration
   kafka:
     bootstrap-servers: localhost:9092
     consumer:
       group-id: search-service
+      auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "*"
 
+# Server Configuration
 server:
   port: 8083
+  error:
+    include-message: always
 
+# Actuator Configuration
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+# Logging Configuration
+logging:
+  level:
+    com.stayhub.search_service: DEBUG
+    org.springframework.data.elasticsearch: DEBUG
+    org.elasticsearch: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+---
+# Docker Profile
+spring:
+  config:
+    activate:
+      on-profile: docker
+  datasource:
+    url: jdbc:postgresql://postgres:5432/stayhub_search
+  elasticsearch:
+    uris: http://elasticsearch:9200
+  kafka:
+    bootstrap-servers: kafka:29092
