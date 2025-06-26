@@ -1,17 +1,11 @@
 # PowerShell script to start StayHub Platform on Windows
-# Usage: .\start-all-windows.ps1
+# Usage: .\scripts\start-all-windows.ps1
 
 param(
     [switch]$SkipBuild,
     [switch]$SkipInfrastructure,
     [switch]$Verbose
 )
-
-# Colors for output
-$Green = "Green"
-$Yellow = "Yellow" 
-$Red = "Red"
-$Cyan = "Cyan"
 
 # Configuration
 $Services = @(
@@ -29,34 +23,34 @@ $AllPorts = $InfraPorts + $ServicePorts
 $ServiceProcesses = @{}
 
 function Write-ColorOutput {
-    param([string]$Message, [string]$Color = "White")
-    Write-Host $Message -ForegroundColor $Color
+    param(
+        [Parameter(Mandatory = $true)][string]$Message,
+        [string]$Color = "White"
+    )
+
+    # Remove any hidden control / formatting characters that can sneak in
+    $cleanColor = ($Color -replace '\p{C}', '')   # \p{C} = all control chars
+
+    try {
+        # Enum.Parse(Type, string, ignoreCase) works on all PS versions
+        $parsed = [Enum]::Parse([System.ConsoleColor], $cleanColor, $true)
+    }
+    catch {
+        $parsed = [System.ConsoleColor]::White
+    }
+
+    Write-Host $Message -ForegroundColor $parsed
 }
 
-function Write-Status {
-    param([string]$Message)
-    Write-ColorOutput "🔄 $Message" $Cyan
-}
-
-function Write-Success {
-    param([string]$Message)
-    Write-ColorOutput "✅ $Message" $Green
-}
-
-function Write-Warning {
-    param([string]$Message)
-    Write-ColorOutput "⚠️  $Message" $Yellow
-}
-
-function Write-Error {
-    param([string]$Message)
-    Write-ColorOutput "❌ $Message" $Red
-}
+function Write-Status  { param([string]$Message) Write-ColorOutput ">> $Message" "Cyan"   }
+function Write-Success { param([string]$Message) Write-ColorOutput "OK $Message" "Green"  }
+function Write-Warning { param([string]$Message) Write-ColorOutput "!!  $Message" "Yellow" }
+function Write-Error   { param([string]$Message) Write-ColorOutput "XX $Message" "Red"    }
 
 function Test-Port {
     param([int]$Port)
     try {
-        $connection = Test-NetConnection -ComputerName "localhost" -Port $Port -WarningAction SilentlyContinue
+        $connection = Test-NetConnection -ComputerName "localhost" -Port $Port -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
         return $connection.TcpTestSucceeded
     }
     catch {
@@ -236,9 +230,15 @@ function Start-Service {
         Start-Sleep -Seconds 3
         
         # Check if process is still running
-        if ($process.HasExited) {
-            Write-Error "$($Service.Name) failed to start (process exited immediately)"
-            return $false
+        try {
+            $process.Refresh()
+            if ($process.HasExited) {
+                Write-Error "$($Service.Name) failed to start (process exited immediately)"
+                return $false
+            }
+        }
+        catch {
+            Write-Warning "Could not verify process status for $($Service.Name)"
         }
         
         # Wait for the service to be ready
@@ -247,8 +247,13 @@ function Start-Service {
             return $true
         } else {
             # Kill the process if it's not responding
-            if (-not $process.HasExited) {
-                $process.Kill()
+            try {
+                if (-not $process.HasExited) {
+                    $process.Kill()
+                }
+            }
+            catch {
+                Write-Warning "Could not kill process for $($Service.Name)"
             }
             return $false
         }
@@ -285,66 +290,110 @@ function Save-ProcessIds {
     foreach ($serviceName in $ServiceProcesses.Keys) {
         $process = $ServiceProcesses[$serviceName]
         if ($process -and -not $process.HasExited) {
-            $process.Id | Out-File -FilePath ".pids/$serviceName.pid" -Encoding UTF8
+            try {
+                $process.Id | Out-File -FilePath ".pids/$serviceName.pid" -Encoding UTF8
+            }
+            catch {
+                Write-Warning "Could not save PID for $serviceName"
+            }
         }
     }
 }
 
 function Show-Summary {
     Write-Host ""
-    Write-Success "🎉 StayHub Platform is running!"
-    Write-Host "=" * 50 -ForegroundColor $Cyan
+    Write-Success "StayHub Platform is running!"
+    Write-Host ("=" * 50) -ForegroundColor Cyan
     
     Write-Host ""
-    Write-ColorOutput "📋 Services:" $Yellow
+    Write-ColorOutput "Services:" "Yellow"
     foreach ($service in $Services) {
-        Write-Host "  • $($service.Name.PadRight(20)) http://localhost:$($service.Port)" -ForegroundColor White
+        if ($service -and $service.Name -and $service.Port) {
+            $serviceName = $service.Name.ToString().PadRight(20)
+            Write-Host "  • $serviceName http://localhost:$($service.Port)" -ForegroundColor White
+        }
     }
     
     Write-Host ""
-    Write-ColorOutput "🔧 Infrastructure:" $Yellow
+    Write-ColorOutput "Infrastructure:" "Yellow"
     Write-Host "  • PostgreSQL:        localhost:5432" -ForegroundColor White
     Write-Host "  • Redis:             localhost:6379" -ForegroundColor White  
     Write-Host "  • Elasticsearch:     http://localhost:9200" -ForegroundColor White
     Write-Host "  • Kafka:             localhost:9092" -ForegroundColor White
     
     Write-Host ""
-    Write-ColorOutput "📖 API Documentation:" $Yellow
+    Write-ColorOutput "API Documentation:" "Yellow"
     Write-Host "  • Property Service:  http://localhost:8081/swagger-ui.html" -ForegroundColor White
     Write-Host "  • Booking Service:   http://localhost:8082/swagger-ui.html" -ForegroundColor White
     
     Write-Host ""
-    Write-ColorOutput "🔍 Health Checks:" $Yellow
+    Write-ColorOutput "Health Checks:" "Yellow"
     foreach ($service in $Services) {
-        Write-Host "  • $($service.Name.PadRight(20)) http://localhost:$($service.Port)/actuator/health" -ForegroundColor White
+        if ($service -and $service.Name -and $service.Port) {
+            $serviceName = $service.Name.ToString().PadRight(20)
+            Write-Host "  • $serviceName http://localhost:$($service.Port)/actuator/health" -ForegroundColor White
+        }
     }
     
     Write-Host ""
-    Write-ColorOutput "⚠️  To stop all services:" $Yellow
-    Write-Host "    .\stop-all-windows.ps1" -ForegroundColor White
+    Write-ColorOutput "⚠️  To stop all services:" "Yellow"
+    Write-Host "    .\scripts\stop-all-windows.ps1" -ForegroundColor White
     Write-Host ""
 }
 
 function Cleanup {
     Write-Warning "Cleaning up processes due to error..."
     
-    foreach ($process in $ServiceProcesses.Values) {
-        if ($process -and -not $process.HasExited) {
+    foreach ($serviceName in $ServiceProcesses.Keys) {
+        $process = $ServiceProcesses[$serviceName]
+        if ($process) {
             try {
-                $process.Kill()
-                $process.WaitForExit(5000)
+                $process.Refresh()
+                if (-not $process.HasExited) {
+                    $process.Kill()
+                    $process.WaitForExit(5000)
+                    Write-Host "Stopped $serviceName (PID: $($process.Id))"
+                }
             }
             catch {
-                Write-Warning "Could not kill process $($process.Id)"
+                Write-Warning "Could not kill process for $serviceName : $_"
             }
         }
     }
 }
 
+function Test-ServiceHealth {
+    Write-Status "Checking service health..."
+    
+    $deadServices = @()
+    foreach ($serviceName in $ServiceProcesses.Keys) {
+        $process = $ServiceProcesses[$serviceName]
+        
+        if ($process) {
+            try {
+                $process.Refresh()
+                if ($process.HasExited) {
+                    $deadServices += $serviceName
+                    Write-Warning "$serviceName has stopped (Exit Code: $($process.ExitCode))"
+                }
+            }
+            catch {
+                Write-Warning "Could not check status of $serviceName : $_"
+                $deadServices += $serviceName
+            }
+        } else {
+            Write-Warning "$serviceName process object is null"
+            $deadServices += $serviceName
+        }
+    }
+    
+    return $deadServices
+}
+
 # Main execution
 try {
-    Write-ColorOutput "🚀 Starting StayHub Platform..." $Cyan
-    Write-Host "=" * 50 -ForegroundColor $Cyan
+    Write-ColorOutput "Starting StayHub Platform..." "Cyan"
+    Write-Host ("=" * 50) -ForegroundColor Cyan
     Write-Host ""
     
     # Check prerequisites
@@ -385,36 +434,37 @@ try {
     # Show summary
     Show-Summary
     
-    Write-ColorOutput "✨ All services are running successfully!" $Green
-    Write-Host "Press Ctrl+C to stop or run .\stop-all-windows.ps1" -ForegroundColor Gray
+    Write-ColorOutput "All services are running successfully!" "Green"
+    Write-Host "Press Ctrl+C to stop or run .\scripts\stop-all-windows.ps1" -ForegroundColor Gray
     
-    # Keep script running
+    # Keep script running with improved monitoring
     try {
         while ($true) {
             Start-Sleep -Seconds 30
             
             # Check if any services have died
-            $deadServices = @()
-            foreach ($serviceName in $ServiceProcesses.Keys) {
-                $process = $ServiceProcesses[$serviceName]
-                if ($process.HasExited) {
-                    $deadServices += $serviceName
-                }
-            }
+            $deadServices = Test-ServiceHealth
             
             if ($deadServices.Count -gt 0) {
                 Write-Warning "The following services have stopped: $($deadServices -join ', ')"
+                Write-Warning "Use .\scripts\stop-all-windows.ps1 to clean up remaining services"
                 break
             }
         }
     }
-    catch {
+    catch [System.Management.Automation.PipelineStoppedException] {
         Write-Host ""
         Write-Warning "Received interrupt signal. Stopping services..."
+    }
+    catch {
+        Write-Host ""
+        Write-Warning "Monitoring interrupted: $_"
     }
 }
 catch {
     Write-Error "Unexpected error: $_"
+    Write-Host "Error details: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Stack trace: $($_.ScriptStackTrace)" -ForegroundColor Gray
     Cleanup
     exit 1
 }

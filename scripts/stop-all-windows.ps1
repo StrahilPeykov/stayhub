@@ -1,5 +1,5 @@
 # PowerShell script to stop StayHub Platform on Windows
-# Usage: .\stop-all-windows.ps1
+# Usage: .\scripts\stop-all-windows.ps1
 
 param(
     [switch]$KeepInfrastructure,
@@ -93,84 +93,115 @@ function Stop-ServicesByPid {
     return $servicesStopped
 }
 
-function Stop-ServicesByName {
-    Write-Status "Stopping services by process name..."
+function Stop-ServicesByPort {
+    Write-Status "Stopping services by port..."
     
-    $servicePatterns = @(
-        "java*spring-boot*property-service*",
-        "java*spring-boot*booking-service*", 
-        "java*spring-boot*search-service*",
-        "java*spring-boot*user-service*"
-    )
-    
+    $ports = @(8081, 8082, 8083, 8084)
     $servicesStopped = 0
     
-    foreach ($pattern in $servicePatterns) {
+    foreach ($port in $ports) {
         try {
-            $processes = Get-WmiObject Win32_Process | Where-Object { 
-                $_.CommandLine -like "*spring-boot:run*" -and 
-                $_.CommandLine -like "*stayhub*"
-            }
-            
-            foreach ($process in $processes) {
-                $serviceName = "Unknown Service"
-                if ($process.CommandLine -like "*property-service*") { $serviceName = "property-service" }
-                elseif ($process.CommandLine -like "*booking-service*") { $serviceName = "booking-service" }
-                elseif ($process.CommandLine -like "*search-service*") { $serviceName = "search-service" }
-                elseif ($process.CommandLine -like "*user-service*") { $serviceName = "user-service" }
-                
-                Write-Status "Stopping $serviceName (PID: $($process.ProcessId))..."
-                
-                try {
-                    if ($Force) {
-                        Stop-Process -Id $process.ProcessId -Force
-                    } else {
-                        Stop-Process -Id $process.ProcessId
+            $connections = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
+            foreach ($connection in $connections) {
+                $processId = $connection.OwningProcess
+                if ($processId -and $processId -ne 0) {
+                    try {
+                        $process = Get-Process -Id $processId -ErrorAction Stop
+                        Write-Status "Stopping process on port $port (PID: $processId, Name: $($process.ProcessName))"
+                        
+                        if ($Force) {
+                            $process.Kill()
+                        } else {
+                            $process.CloseMainWindow()
+                            if (-not $process.WaitForExit(5000)) {
+                                $process.Kill()
+                            }
+                        }
+                        
+                        $servicesStopped++
+                        Write-Success "Stopped process on port $port"
                     }
-                    $servicesStopped++
-                    Write-Success "Stopped $serviceName"
-                }
-                catch {
-                    Write-Warning "Could not stop $serviceName : $_"
+                    catch {
+                        Write-Warning "Could not stop process $processId on port $port : $_"
+                    }
                 }
             }
         }
         catch {
-            Write-Warning "Error searching for processes: $_"
+            # Port not in use, which is fine
         }
+    }
+    
+    if ($servicesStopped -eq 0) {
+        Write-Warning "No processes found using service ports"
+    } else {
+        Write-Success "Stopped $servicesStopped processes by port"
+    }
+    
+    return $servicesStopped
+}
+
+function Stop-ServicesByName {
+    Write-Status "Stopping services by process name..."
+    
+    $servicesStopped = 0
+    
+    try {
+        # Find Java processes that might be Spring Boot apps
+        $javaProcesses = Get-Process -Name "java" -ErrorAction SilentlyContinue
+        
+        foreach ($process in $javaProcesses) {
+            try {
+                # Try to get command line to identify Spring Boot processes
+                $commandLine = (Get-WmiObject Win32_Process -Filter "ProcessId = $($process.Id)").CommandLine
+                
+                if ($commandLine -and ($commandLine -like "*spring-boot:run*" -or $commandLine -like "*stayhub*")) {
+                    Write-Status "Stopping Java process (PID: $($process.Id))"
+                    
+                    if ($Force) {
+                        $process.Kill()
+                    } else {
+                        $process.CloseMainWindow()
+                        if (-not $process.WaitForExit(5000)) {
+                            $process.Kill()
+                        }
+                    }
+                    
+                    $servicesStopped++
+                    Write-Success "Stopped Java process (PID: $($process.Id))"
+                }
+            }
+            catch {
+                Write-Warning "Could not stop Java process $($process.Id): $_"
+            }
+        }
+    }
+    catch {
+        Write-Warning "Error searching for Java processes: $_"
     }
     
     if ($servicesStopped -eq 0) {
         Write-Warning "No Spring Boot services found running"
     } else {
-        Write-Success "Stopped $servicesStopped additional services"
+        Write-Success "Stopped $servicesStopped Java processes"
     }
     
     return $servicesStopped
 }
 
 function Stop-AllJavaProcesses {
-    Write-Status "Stopping all Maven Spring Boot processes..."
+    Write-Status "Force stopping ALL Java processes..."
     
     try {
-        $javaProcesses = Get-Process | Where-Object { 
-            $_.ProcessName -eq "java" -and 
-            $_.MainWindowTitle -like "*maven*" 
-        }
+        $javaProcesses = Get-Process -Name "java" -ErrorAction SilentlyContinue
         
         $stopped = 0
         foreach ($process in $javaProcesses) {
             try {
-                Write-Status "Stopping Java process (PID: $($process.Id))..."
-                if ($Force) {
-                    $process.Kill()
-                } else {
-                    $process.CloseMainWindow()
-                    if (-not $process.WaitForExit(5000)) {
-                        $process.Kill()
-                    }
-                }
+                Write-Status "Force stopping Java process (PID: $($process.Id))"
+                $process.Kill()
                 $stopped++
+                Write-Success "Stopped Java process (PID: $($process.Id))"
             }
             catch {
                 Write-Warning "Could not stop Java process $($process.Id): $_"
@@ -178,13 +209,15 @@ function Stop-AllJavaProcesses {
         }
         
         if ($stopped -gt 0) {
-            Write-Success "Stopped $stopped Java processes"
+            Write-Success "Force stopped $stopped Java processes"
+        } else {
+            Write-Warning "No Java processes found"
         }
         
         return $stopped
     }
     catch {
-        Write-Warning "Error stopping Java processes: $_"
+        Write-Warning "Error force stopping Java processes: $_"
         return 0
     }
 }
@@ -237,7 +270,32 @@ function Test-PortsStillBusy {
     
     if ($busyPorts.Count -gt 0) {
         Write-Warning "The following service ports are still busy: $($busyPorts -join ', ')"
-        Write-Warning "You may need to manually kill processes or restart your computer"
+        
+        if ($Force) {
+            Write-Status "Force mode: attempting to kill processes on busy ports..."
+            Stop-ServicesByPort | Out-Null
+            
+            # Check again
+            Start-Sleep -Seconds 2
+            $stillBusy = @()
+            foreach ($port in $busyPorts) {
+                $connection = Test-NetConnection -ComputerName "localhost" -Port $port -WarningAction SilentlyContinue
+                if ($connection.TcpTestSucceeded) {
+                    $stillBusy += $port
+                }
+            }
+            
+            if ($stillBusy.Count -gt 0) {
+                Write-Warning "Ports still busy after force stop: $($stillBusy -join ', ')"
+                Write-Warning "You may need to restart your computer"
+            } else {
+                Write-Success "All ports are now free"
+            }
+        } else {
+            Write-Warning "Run with -Force flag to attempt forceful cleanup"
+            Write-Warning "Or run: Get-Process -Name 'java' | Stop-Process -Force"
+        }
+        
         return $false
     } else {
         Write-Success "All service ports are now free"
@@ -256,12 +314,15 @@ try {
     # Method 1: Stop by saved PIDs
     $totalStopped += Stop-ServicesByPid
     
-    # Method 2: Stop by process names
+    # Method 2: Stop by port (more effective)
+    $totalStopped += Stop-ServicesByPort
+    
+    # Method 3: Stop by process names
     $totalStopped += Stop-ServicesByName
     
-    # Method 3: Nuclear option - stop all suspicious Java processes
+    # Method 4: Nuclear option - stop all Java processes
     if ($Force) {
-        Write-Warning "Force mode: stopping all Maven Java processes..."
+        Write-Warning "Force mode: stopping ALL Java processes..."
         $totalStopped += Stop-AllJavaProcesses
     }
     
@@ -275,7 +336,7 @@ try {
     Stop-Infrastructure
     
     # Final check
-    Test-PortsStillBusy | Out-Null
+    $allPortsFree = Test-PortsStillBusy
     
     Write-Host ""
     if ($totalStopped -gt 0) {
@@ -288,7 +349,12 @@ try {
         Write-Success "✅ Infrastructure services stopped"
     }
     
-    Write-ColorOutput "🏁 StayHub Platform shutdown complete!" $Green
+    if ($allPortsFree) {
+        Write-ColorOutput "🏁 StayHub Platform shutdown complete!" $Green
+    } else {
+        Write-ColorOutput "⚠️  Platform shutdown completed with warnings" $Yellow
+        Write-Host "Some ports may still be in use. Consider running with -Force flag." -ForegroundColor Yellow
+    }
 }
 catch {
     Write-Error "Unexpected error during shutdown: $_"
