@@ -8,6 +8,13 @@
     username: postgres
     password: 1234
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 600000
+      leak-detection-threshold: 60000
   
   # JPA Configuration  
   jpa:
@@ -17,7 +24,14 @@
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+        show_sql: false
+        # Add connection validation
+        connection:
+          provider_disables_autocommit: true
+        jdbc:
+          time_zone: UTC
     show-sql: false
+    open-in-view: false
   
   # Elasticsearch Configuration (no auth since security is disabled)
   elasticsearch:
@@ -51,6 +65,13 @@ management:
   endpoint:
     health:
       show-details: always
+      probes:
+        enabled: true
+  health:
+    db:
+      enabled: true
+    elasticsearch:
+      enabled: false  # Disable ES health check if causing issues
 
 # Logging Configuration
 logging:
@@ -58,6 +79,9 @@ logging:
     com.stayhub.search_service: DEBUG
     org.springframework.data.elasticsearch: DEBUG
     org.elasticsearch: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    com.zaxxer.hikari: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
 
