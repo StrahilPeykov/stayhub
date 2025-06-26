@@ -43,10 +43,10 @@ class BookingServiceTest {
     @Mock
     private BookingEventPublisher eventPublisher;
     
-    @Mock
+    @Mock(lenient = true)
     private RedisTemplate<String, String> redisTemplate;
     
-    @Mock
+    @Mock(lenient = true)
     private ValueOperations<String, String> valueOperations;
     
     @InjectMocks
@@ -81,6 +81,7 @@ class BookingServiceTest {
                 .totalRooms(10)
                 .build();
         
+        // Setup Redis mocks - lenient now so won't fail if unused
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     }
     
