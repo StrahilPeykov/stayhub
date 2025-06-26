@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics-engine
+  namespace: stayhub
+  labels:
+    app: analytics-engine
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: analytics-engine
+  template:
+    metadata:
+      labels:
+        app: analytics-engine
+    spec:
+      containers:
+      - name: analytics-engine
+        image: stayhub/analytics-engine:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: POSTGRES_HOST
+          value: "postgres-service"
+        - name: MYSQL_HOST
+          value: "mysql-service"
+        - name: REDIS_HOST
+          value: "redis-service"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: perl-libs
+          mountPath: /usr/local/lib/perl5
+      volumes:
+      - name: perl-libs
+        persistentVolumeClaim:
+          claimName: perl-libs-pvc

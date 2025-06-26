@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ServiceMonitor
+metadata:
+  name: booking-service-monitor
+  namespace: stayhub
+  labels:
+    app: booking-service
+spec:
+  selector:
+    matchLabels:
+      app: booking-service
+  endpoints:
+  - port: http
+    path: /actuator/prometheus
+    interval: 30s

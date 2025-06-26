@@ -3,164 +3,283 @@ spring:
   application:
     name: booking-service
   
-  # Database Configuration
+  # Primary Database - PostgreSQL for transactional data
   datasource:
-    url: jdbc:postgresql://localhost:5432/stayhub_bookings
-    username: postgres
-    password: 1234
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
-      pool-name: BookingServiceHikariPool
+    postgresql:
+      url: jdbc:postgresql://localhost:5432/stayhub_bookings
+      username: postgres
+      password: ${DB_PASSWORD:1234}
+      driver-class-name: org.postgresql.Driver
+      hikari:
+        pool-name: PostgreSQL-Primary
+        maximum-pool-size: 20
+        minimum-idle: 5
+        connection-timeout: 30000
+        idle-timeout: 600000
+        max-lifetime: 1800000
+        leak-detection-threshold: 60000
+        connection-test-query: SELECT 1
+    
+    # Secondary Database - MySQL for read replicas and analytics
+    mysql:
+      url: jdbc:mysql://localhost:3306/stayhub_reporting?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      username: root
+      password: ${MYSQL_PASSWORD:mysql1234}
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      hikari:
+        pool-name: MySQL-Replica
+        maximum-pool-size: 15
+        minimum-idle: 3
+        connection-timeout: 20000
+        idle-timeout: 300000
+        max-lifetime: 1200000
+    
+    # Analytics Database - Separate pool for heavy queries
+    analytics:
+      url: jdbc:mysql://localhost:3307/stayhub_analytics?useSSL=false&serverTimezone=UTC
+      username: analytics_user
+      password: ${ANALYTICS_PASSWORD:analytics123}
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      hikari:
+        pool-name: MySQL-Analytics
+        maximum-pool-size: 10
+        minimum-idle: 2
+        connection-timeout: 45000
   
   # JPA Configuration
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate  # Use Flyway for migrations
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
         jdbc:
           batch_size: 25
+          batch_versioned_data: true
         order_inserts: true
         order_updates: true
+        generate_statistics: true
+        # Second level cache
+        cache:
+          use_second_level_cache: true
+          use_query_cache: true
+          region:
+            factory_class: org.hibernate.cache.jcache.JCacheRegionFactory
+        # Performance optimizations
+        connection:
+          provider_disables_autocommit: true
+        query:
+          in_clause_parameter_padding: true
+          fail_on_pagination_over_collection_fetch: true
     show-sql: false
     open-in-view: false
+  
+  # Flyway Migration
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    schemas: public
+    table: schema_version
+    out-of-order: false
+    validate-on-migrate: true
   
   # Redis Configuration
   data:
     redis:
-      host: localhost
+      host: ${REDIS_HOST:localhost}
       port: 6379
+      password: ${REDIS_PASSWORD:}
       timeout: 2000ms
       lettuce:
         pool:
-          max-active: 8
+          max-active: 10
           max-idle: 8
-          min-idle: 0
+          min-idle: 2
           max-wait: -1ms
+        cluster:
+          refresh:
+            adaptive: true
+            period: 30s
+      # Redis Sentinel for HA
+      sentinel:
+        master: mymaster
+        nodes: localhost:26379,localhost:26380,localhost:26381
   
   # Cache Configuration
   cache:
     type: redis
     redis:
-      time-to-live: 3600000 # 1 hour in milliseconds
+      time-to-live: 3600000 # 1 hour
       cache-null-values: false
+      key-prefix: "booking:"
+      use-key-prefix: true
+    cache-names:
+      - bookings
+      - userBookings
+      - propertyBookings
+      - roomTypes
+      - availability
   
   # Kafka Configuration
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       acks: all
       retries: 3
+      batch-size: 16384
+      linger-ms: 10
+      buffer-memory: 33554432
+      compression-type: snappy
       properties:
         enable.idempotence: true
         max.in.flight.requests.per.connection: 5
+        min.insync.replicas: 2
     consumer:
-      group-id: booking-service
+      group-id: booking-service-${random.uuid}
       auto-offset-reset: earliest
+      enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: "com.stayhub.booking_service.event,com.stayhub.property_service.event"
+        spring.json.trusted.packages: "com.stayhub.*"
+        session.timeout.ms: 30000
+        max.poll.records: 500
+        max.poll.interval.ms: 300000
+      max-poll-records: 500
     admin:
       properties:
-        bootstrap.servers: localhost:9092
+        bootstrap.servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    # Stream processing
+    streams:
+      application-id: booking-stream-processor
+      properties:
+        processing.guarantee: exactly_once_v2
+        cache.max.bytes.buffering: 10485760
 
 # Server Configuration
 server:
   port: 8082
-  error:
-    include-message: always
-    include-binding-errors: always
   compression:
     enabled: true
     mime-types: application/json,application/xml,text/html,text/xml,text/plain
-  
-# Actuator Configuration
+    min-response-size: 1024
+  http2:
+    enabled: true
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: on-param
+  # Tomcat specific
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 20
+    connection-timeout: 20000
+    max-connections: 10000
+    accept-count: 100
+  # Graceful shutdown
+  shutdown: graceful
+
+# Spring Boot Actuator
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus,circuitbreakers,ratelimiters
+        include: health,info,metrics,prometheus,circuitbreakers,ratelimiters,caches,flyway,kafka
       base-path: /actuator
   endpoint:
     health:
       show-details: always
       show-components: always
-  management:
-    prometheus:
-      metrics:
-        export: true
+      probes:
+        enabled: true
+    metrics:
+      enabled: true
+  metrics:
     distribution:
       percentiles-histogram:
-        http:
-          server:
-            requests: true
+        http.server.requests: true
+      percentiles:
+        http.server.requests: 0.5,0.95,0.99
+    tags:
+      application: ${spring.application.name}
+      environment: ${spring.profiles.active:default}
   tracing:
     sampling:
       probability: 1.0
+  prometheus:
+    metrics:
+      export:
+        enabled: true
 
-# Resilience4j Configuration - FIXED PACKAGE NAMES
+# Resilience4j Configuration
 resilience4j:
   circuitbreaker:
     configs:
       default:
         registerHealthIndicator: true
-        slidingWindowSize: 10
-        minimumNumberOfCalls: 5
-        permittedNumberOfCallsInHalfOpenState: 3
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 100
+        minimumNumberOfCalls: 20
+        permittedNumberOfCallsInHalfOpenState: 10
         automaticTransitionFromOpenToHalfOpenEnabled: true
-        waitDurationInOpenState: 5s
+        waitDurationInOpenState: 10s
         failureRateThreshold: 50
         eventConsumerBufferSize: 10
         recordExceptions:
           - org.springframework.web.client.HttpServerErrorException
           - java.util.concurrent.TimeoutException
           - java.io.IOException
+          - org.springframework.dao.DataAccessException
         ignoreExceptions:
-          - com.stayhub.booking_service.exception.ResourceNotFoundException
+          - com.stayhub.booking_service.exception.BusinessException
     instances:
       property-service:
         baseConfig: default
-        waitDurationInOpenState: 10s
+        waitDurationInOpenState: 15s
         failureRateThreshold: 60
+      booking-service:
+        baseConfig: default
+        slidingWindowSize: 50
+        failureRateThreshold: 40
   
   retry:
     configs:
       default:
         maxAttempts: 3
-        waitDuration: 500
+        waitDuration: 500ms
         enableExponentialBackoff: true
         exponentialBackoffMultiplier: 2
         retryExceptions:
           - org.springframework.web.client.HttpServerErrorException
           - java.util.concurrent.TimeoutException
-          - java.io.IOException
+          - org.springframework.dao.DataAccessException
         ignoreExceptions:
-          - com.stayhub.booking_service.exception.ResourceNotFoundException
+          - com.stayhub.booking_service.exception.ValidationException
     instances:
       property-service:
         baseConfig: default
+        maxAttempts: 5
+        waitDuration: 1000ms
+      database:
         maxAttempts: 3
-        waitDuration: 1000
+        waitDuration: 200ms
   
   bulkhead:
     configs:
       default:
-        maxConcurrentCalls: 25
-        maxWaitDuration: 0
+        maxConcurrentCalls: 50
+        maxWaitDuration: 500ms
     instances:
       property-service:
-        baseConfig: default
-        maxConcurrentCalls: 10
+        maxConcurrentCalls: 20
+      availability-check:
+        maxConcurrentCalls: 100
+        maxWaitDuration: 0
   
   timelimiter:
     configs:
@@ -169,8 +288,9 @@ resilience4j:
         timeoutDuration: 3s
     instances:
       property-service:
-        baseConfig: default
         timeoutDuration: 5s
+      slow-query:
+        timeoutDuration: 30s
   
   ratelimiter:
     configs:
@@ -182,8 +302,10 @@ resilience4j:
         eventConsumerBufferSize: 100
     instances:
       booking-creation:
-        baseConfig: default
         limitForPeriod: 50
+        limitRefreshPeriod: 1s
+      api-gateway:
+        limitForPeriod: 1000
         limitRefreshPeriod: 1s
 
 # Logging Configuration
@@ -191,45 +313,112 @@ logging:
   level:
     com.stayhub.booking_service: DEBUG
     org.springframework.web: INFO
-    org.springframework.data: DEBUG
+    org.springframework.data: INFO
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-    io.github.resilience4j: DEBUG
+    org.hibernate.stat: DEBUG
+    io.github.resilience4j: INFO
+    org.springframework.kafka: INFO
+    com.zaxxer.hikari: DEBUG
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %highlight(%-5level) - [%thread] %logger{36} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
   file:
     name: logs/booking-service.log
-    max-size: 10MB
+    max-size: 100MB
     max-history: 30
+    clean-history-on-start: false
 
 # External Service Configuration
 services:
   property:
-    url: http://localhost:8081
+    url: ${PROPERTY_SERVICE_URL:http://localhost:8081}
     connect-timeout: 5000
     read-timeout: 10000
+  search:
+    url: ${SEARCH_SERVICE_URL:http://localhost:8083}
+    connect-timeout: 3000
+    read-timeout: 8000
+  user:
+    url: ${USER_SERVICE_URL:http://localhost:8084}
+    connect-timeout: 3000
+    read-timeout: 5000
 
 # API Documentation
 springdoc:
   api-docs:
     path: /api-docs
+    enabled: true
   swagger-ui:
     path: /swagger-ui.html
+    enabled: true
     operations-sorter: method
     tags-sorter: alpha
+    display-request-duration: true
   show-actuator: true
+  default-produces-media-type: application/json
 
-# Custom Application Properties
+# Application specific properties
 app:
   booking:
     max-days-advance: 365
     max-booking-duration: 30
     max-rooms-per-booking: 10
+    min-advance-hours: 2
     cancellation:
       full-refund-days: 7
       partial-refund-days: 3
       partial-refund-percentage: 50
+      no-refund-hours: 24
+    pricing:
+      weekend-surcharge: 1.2
+      peak-season-multiplier: 1.5
+      last-minute-discount: 0.85
+      advance-booking-discount: 0.9
+    cache:
+      ttl:
+        booking: 3600
+        availability: 300
+        room-type: 7200
+  security:
+    jwt:
+      secret: ${JWT_SECRET:MyVerySecureSecretKeyForJWTTokenGeneration}
+      expiration: 86400000
+  async:
+    core-pool-size: 10
+    max-pool-size: 50
+    queue-capacity: 1000
+
+---
+# Kubernetes Profile
+spring:
+  config:
+    activate:
+      on-profile: k8s
+  datasource:
+    postgresql:
+      url: jdbc:postgresql://postgres-service:5432/stayhub_bookings
+    mysql:
+      url: jdbc:mysql://mysql-service:3306/stayhub_reporting
+  data:
+    redis:
+      host: redis-service
+  kafka:
+    bootstrap-servers: kafka-service:9092
+  cloud:
+    kubernetes:
+      reload:
+        enabled: true
+        mode: polling
+        period: 30000
+
+services:
+  property:
+    url: http://property-service
+  search:
+    url: http://search-service
+  user:
+    url: http://user-service
 
 ---
 # Test Profile
@@ -238,30 +427,20 @@ spring:
     activate:
       on-profile: test
   datasource:
-    url: jdbc:postgresql://localhost:5432/stayhub_bookings_test
+    postgresql:
+      url: jdbc:postgresql://localhost:5432/stayhub_bookings_test
+    mysql:
+      url: jdbc:mysql://localhost:3306/stayhub_test
   jpa:
     hibernate:
       ddl-auto: create-drop
     show-sql: true
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${spring.embedded.kafka.brokers}
   cache:
     type: simple
 
----
-# Docker Profile
-spring:
-  config:
-    activate:
-      on-profile: docker
-  datasource:
-    url: jdbc:postgresql://postgres:5432/stayhub_bookings
-  data:
-    redis:
-      host: redis
-  kafka:
-    bootstrap-servers: kafka:29092
-  
-services:
-  property:
-    url: http://property-service:8081
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    com.stayhub: DEBUG

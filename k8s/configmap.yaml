@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: stayhub
+data:
+  SPRING_PROFILES_ACTIVE: "k8s"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-service:9092"
+  REDIS_HOST: "redis-service"
+  ELASTICSEARCH_HOSTS: "http://elasticsearch-service:9200"

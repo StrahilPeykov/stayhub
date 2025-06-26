@@ -1,0 +1,441 @@
+# Complete CI/CD pipeline for StayHub microservices
+
+stages:
+  - build
+  - test
+  - security
+  - quality
+  - package
+  - deploy-staging
+  - integration-test
+  - deploy-production
+
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  CONTAINER_REGISTRY: ${CI_REGISTRY_IMAGE}
+  KUBECONFIG: /etc/deploy/config
+  SONAR_HOST_URL: "https://sonarqube.stayhub.com"
+  HELM_VERSION: "3.12.0"
+
+# Cache configuration
+cache:
+  key: "${CI_JOB_NAME}"
+  paths:
+    - .m2/repository
+    - node_modules/
+
+# Templates for reusable job configurations
+.docker_build_template: &docker_build
+  stage: package
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+
+.kubernetes_deploy_template: &kubernetes_deploy
+  image: bitnami/kubectl:latest
+  before_script:
+    - mkdir -p /etc/deploy
+    - echo $KUBE_CONFIG | base64 -d > /etc/deploy/config
+    - export KUBECONFIG=/etc/deploy/config
+
+# Build stage
+build:maven:
+  stage: build
+  image: maven:3.8-openjdk-17
+  script:
+    - mvn clean compile -B
+    - mvn dependency:go-offline -B
+  artifacts:
+    paths:
+      - target/
+      - services/*/target/
+    expire_in: 1 hour
+
+build:perl:
+  stage: build
+  image: perl:5.36
+  script:
+    - cd services/analytics-engine
+    - cpanm --installdeps .
+    - perl -c app.pl
+  artifacts:
+    paths:
+      - services/analytics-engine/
+    expire_in: 1 hour
+
+# Test stage
+test:unit:
+  stage: test
+  image: maven:3.8-openjdk-17
+  services:
+    - postgres:15-alpine
+    - redis:7-alpine
+    - mysql:8.0
+  variables:
+    POSTGRES_DB: test_db
+    POSTGRES_USER: test
+    POSTGRES_PASSWORD: test
+    MYSQL_DATABASE: test_db
+    MYSQL_ROOT_PASSWORD: test
+    REDIS_HOST: redis
+  script:
+    - mvn test -B
+    - mvn jacoco:report
+    - awk -F"," '{ instructions += $4 + $5; covered += $5 } END { print covered, "/", instructions, " instructions covered"; print 100*covered/instructions, "% covered" }' target/site/jacoco/jacoco.csv
+  coverage: '/([0-9]{1,3}\.[0-9]*) % covered/'
+  artifacts:
+    name: "test-results-$CI_COMMIT_REF_NAME"
+    when: always
+    reports:
+      junit:
+        - "**/target/surefire-reports/TEST-*.xml"
+      coverage_report:
+        coverage_format: cobertura
+        path: "**/target/site/jacoco/jacoco.xml"
+    paths:
+      - "**/target/site/jacoco/"
+    expire_in: 1 week
+
+test:integration:
+  stage: test
+  image: maven:3.8-openjdk-17
+  services:
+    - name: postgres:15-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+    - name: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
+      alias: elasticsearch
+      variables:
+        discovery.type: single-node
+        xpack.security.enabled: "false"
+    - name: confluentinc/cp-kafka:7.4.0
+      alias: kafka
+      variables:
+        KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+        KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+  script:
+    - mvn verify -Pintegration-tests -B
+  artifacts:
+    reports:
+      junit:
+        - "**/target/failsafe-reports/TEST-*.xml"
+
+test:perl:
+  stage: test
+  image: perl:5.36
+  services:
+    - postgres:15-alpine
+    - redis:7-alpine
+    - memcached:latest
+  script:
+    - cd services/analytics-engine
+    - cpanm Test::More Test::Mojo Test::PostgreSQL
+    - prove -lv t/
+
+# Security scanning
+security:dependency-check:
+  stage: security
+  image: owasp/dependency-check:latest
+  script:
+    - /usr/share/dependency-check/bin/dependency-check.sh 
+      --project "StayHub" 
+      --scan . 
+      --format "ALL" 
+      --enableExperimental 
+      --out reports
+  artifacts:
+    reports:
+      dependency_scanning: reports/dependency-check-report.json
+    paths:
+      - reports/
+    when: always
+    expire_in: 1 week
+
+security:container-scan:
+  stage: security
+  image: aquasec/trivy:latest
+  script:
+    - trivy fs --exit-code 0 --no-progress --format template --template "@/contrib/gitlab.tpl" -o gl-container-scanning-report.json .
+    - trivy fs --exit-code 1 --severity HIGH,CRITICAL --no-progress .
+  artifacts:
+    reports:
+      container_scanning: gl-container-scanning-report.json
+  allow_failure: true
+
+security:secrets-scan:
+  stage: security
+  image: trufflesecurity/trufflehog:latest
+  script:
+    - trufflehog filesystem . --json > secrets-report.json || true
+    - if [ -s secrets-report.json ]; then echo "Secrets found!" && exit 1; fi
+  artifacts:
+    paths:
+      - secrets-report.json
+    when: on_failure
+
+# Code quality
+quality:sonarqube:
+  stage: quality
+  image: sonarsource/sonar-scanner-cli:latest
+  variables:
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
+    GIT_DEPTH: "0"
+  script:
+    - sonar-scanner 
+      -Dsonar.projectKey=stayhub 
+      -Dsonar.sources=. 
+      -Dsonar.host.url=$SONAR_HOST_URL 
+      -Dsonar.login=$SONAR_TOKEN
+      -Dsonar.java.binaries=target/classes
+      -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+  allow_failure: true
+
+quality:lint:
+  stage: quality
+  image: maven:3.8-openjdk-17
+  script:
+    - mvn checkstyle:check
+    - mvn spotbugs:check
+  allow_failure: true
+
+# Performance testing
+performance:load-test:
+  stage: quality
+  image: loadimpact/k6:latest
+  script:
+    - k6 run --out json=load-test-results.json tests/load/booking-load-test.js
+  artifacts:
+    paths:
+      - load-test-results.json
+    reports:
+      load_performance: load-performance.json
+  only:
+    - main
+    - develop
+
+# Build Docker images
+build:booking-service:
+  <<: *docker_build
+  script:
+    - cd services/booking-service
+    - docker build -t $CONTAINER_REGISTRY/booking-service:$CI_COMMIT_SHA .
+    - docker tag $CONTAINER_REGISTRY/booking-service:$CI_COMMIT_SHA $CONTAINER_REGISTRY/booking-service:latest
+    - docker push $CONTAINER_REGISTRY/booking-service:$CI_COMMIT_SHA
+    - docker push $CONTAINER_REGISTRY/booking-service:latest
+
+build:property-service:
+  <<: *docker_build
+  script:
+    - cd services/property-service
+    - docker build -t $CONTAINER_REGISTRY/property-service:$CI_COMMIT_SHA .
+    - docker push $CONTAINER_REGISTRY/property-service:$CI_COMMIT_SHA
+
+build:analytics-engine:
+  <<: *docker_build
+  script:
+    - cd services/analytics-engine
+    - |
+      cat << EOF > Dockerfile
+      FROM perl:5.36-slim
+      RUN apt-get update && apt-get install -y \
+          libdbi-perl \
+          libdbd-pg-perl \
+          libdbd-mysql-perl \
+          build-essential \
+          && rm -rf /var/lib/apt/lists/*
+      WORKDIR /app
+      COPY cpanfile .
+      RUN cpanm --installdeps .
+      COPY . .
+      EXPOSE 3000
+      CMD ["perl", "app.pl", "daemon", "-m", "production", "-l", "http://*:3000"]
+      EOF
+    - docker build -t $CONTAINER_REGISTRY/analytics-engine:$CI_COMMIT_SHA .
+    - docker push $CONTAINER_REGISTRY/analytics-engine:$CI_COMMIT_SHA
+
+# Deploy to staging
+deploy:staging:
+  <<: *kubernetes_deploy
+  stage: deploy-staging
+  script:
+    - kubectl config use-context staging
+    - |
+      for service in booking-service property-service analytics-engine; do
+        kubectl set image deployment/$service $service=$CONTAINER_REGISTRY/$service:$CI_COMMIT_SHA -n stayhub-staging
+        kubectl rollout status deployment/$service -n stayhub-staging
+      done
+    - kubectl apply -f k8s/staging/ -n stayhub-staging
+  environment:
+    name: staging
+    url: https://staging.stayhub.com
+  only:
+    - develop
+    - main
+
+# Staging smoke tests
+test:staging-smoke:
+  stage: integration-test
+  image: postman/newman:alpine
+  script:
+    - newman run tests/postman/stayhub-api-tests.json 
+      --environment tests/postman/staging-env.json 
+      --reporters cli,json 
+      --reporter-json-export newman-results.json
+  artifacts:
+    paths:
+      - newman-results.json
+    reports:
+      junit: newman-results.json
+  dependencies:
+    - deploy:staging
+  only:
+    - develop
+    - main
+
+# Deploy to production with Helm
+deploy:production:
+  <<: *kubernetes_deploy
+  stage: deploy-production
+  image: alpine/helm:${HELM_VERSION}
+  script:
+    - kubectl config use-context production
+    - helm upgrade --install stayhub ./helm/stayhub 
+      --namespace stayhub-prod 
+      --create-namespace 
+      --set image.tag=$CI_COMMIT_SHA 
+      --set image.repository=$CONTAINER_REGISTRY 
+      --wait 
+      --timeout 10m
+    - kubectl get pods -n stayhub-prod
+  environment:
+    name: production
+    url: https://api.stayhub.com
+  when: manual
+  only:
+    - main
+
+# Blue-Green deployment for zero downtime
+deploy:blue-green:
+  <<: *kubernetes_deploy
+  stage: deploy-production
+  script:
+    - |
+      # Deploy to green environment
+      kubectl apply -f k8s/production/green/ -n stayhub-prod
+      
+      # Update images
+      for service in booking-service property-service; do
+        kubectl set image deployment/$service-green $service=$CONTAINER_REGISTRY/$service:$CI_COMMIT_SHA -n stayhub-prod
+        kubectl rollout status deployment/$service-green -n stayhub-prod
+      done
+      
+      # Run health checks
+      ./scripts/health-check.sh green
+      
+      # Switch traffic to green
+      kubectl patch service booking-service -n stayhub-prod -p '{"spec":{"selector":{"version":"green"}}}'
+      kubectl patch service property-service -n stayhub-prod -p '{"spec":{"selector":{"version":"green"}}}'
+      
+      # Keep blue running for quick rollback
+      echo "Blue-green deployment completed. Blue environment kept for rollback."
+  when: manual
+  only:
+    - main
+
+# Rollback job
+rollback:production:
+  <<: *kubernetes_deploy
+  stage: deploy-production
+  script:
+    - |
+      # Switch traffic back to blue
+      kubectl patch service booking-service -n stayhub-prod -p '{"spec":{"selector":{"version":"blue"}}}'
+      kubectl patch service property-service -n stayhub-prod -p '{"spec":{"selector":{"version":"blue"}}}'
+      echo "Rollback completed. Traffic switched back to blue environment."
+  when: manual
+  only:
+    - main
+
+# Database migrations
+deploy:db-migrations:
+  stage: deploy-staging
+  image: migrate/migrate
+  script:
+    - |
+      for db in bookings properties users analytics; do
+        migrate -path services/${db}-service/migrations \
+                -database "postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:5432/stayhub_${db}?sslmode=require" \
+                up
+      done
+  only:
+    - develop
+    - main
+
+# Monitoring and alerting setup
+deploy:monitoring:
+  <<: *kubernetes_deploy
+  stage: deploy-production
+  script:
+    - kubectl apply -f k8s/monitoring/prometheus-config.yaml -n monitoring
+    - kubectl apply -f k8s/monitoring/grafana-dashboards.yaml -n monitoring
+    - kubectl apply -f k8s/monitoring/alerting-rules.yaml -n monitoring
+  when: manual
+  only:
+    - main
+
+# Cleanup old images
+cleanup:registry:
+  stage: deploy-production
+  image: google/cloud-sdk:alpine
+  script:
+    - |
+      # Keep last 10 images for each service
+      for service in booking-service property-service analytics-engine; do
+        # Get all but the 10 most recent images
+        OLD_IMAGES=$(gcloud container images list-tags $CONTAINER_REGISTRY/$service \
+          --limit=999 --sort-by=~TIMESTAMP \
+          --format='get(digest)' | tail -n +11)
+        
+        for digest in $OLD_IMAGES; do
+          gcloud container images delete "$CONTAINER_REGISTRY/$service@$digest" --quiet
+        done
+      done
+  only:
+    - schedules
+
+# Notification job
+notify:slack:
+  stage: .post
+  image: appropriate/curl:latest
+  script:
+    - |
+      if [ "$CI_JOB_STATUS" == "success" ]; then
+        STATUS_EMOJI=":white_check_mark:"
+        STATUS_COLOR="good"
+      else
+        STATUS_EMOJI=":x:"
+        STATUS_COLOR="danger"
+      fi
+      
+      curl -X POST $SLACK_WEBHOOK_URL \
+        -H 'Content-type: application/json' \
+        --data "{
+          \"attachments\": [{
+            \"color\": \"$STATUS_COLOR\",
+            \"title\": \"Pipeline $CI_PIPELINE_ID $STATUS_EMOJI\",
+            \"text\": \"Branch: $CI_COMMIT_REF_NAME\nCommit: $CI_COMMIT_SHORT_SHA\nAuthor: $CI_COMMIT_AUTHOR\",
+            \"fields\": [
+              {\"title\": \"Project\", \"value\": \"$CI_PROJECT_NAME\", \"short\": true},
+              {\"title\": \"Status\", \"value\": \"$CI_JOB_STATUS\", \"short\": true}
+            ]
+          }]
+        }"
+  when: always
+  only:
+    - main
+    - develop
