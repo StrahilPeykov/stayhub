@@ -24,7 +24,7 @@ spring:
     mysql:
       url: jdbc:mysql://localhost:3306/stayhub_reporting?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
       username: root
-      password: ${MYSQL_PASSWORD:mysql1234}
+      password: ${MYSQL_PASSWORD:1234}
       driver-class-name: com.mysql.cj.jdbc.Driver
       hikari:
         pool-name: MySQL-Replica
