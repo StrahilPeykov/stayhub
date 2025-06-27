@@ -10,6 +10,7 @@ CREATE DATABASE stayhub_search;
 -- Connect to each database and enable UUID extension
 \c stayhub_properties;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "postgis";
 
 \c stayhub_bookings;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

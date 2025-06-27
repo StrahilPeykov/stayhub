@@ -15,7 +15,7 @@ $Services = @(
     @{ Name = "user-service"; Port = 8084; Path = "services/user-service" }
 )
 
-$InfraPorts = @(5432, 6379, 9200, 9092, 2181)
+$InfraPorts = @(5432, 6379, 9200, 9092, 2181, 3306, 3307)
 $ServicePorts = @(8081, 8082, 8083, 8084)
 $AllPorts = $InfraPorts + $ServicePorts
 
@@ -161,13 +161,47 @@ function Start-Infrastructure {
             @{ Port = 5432; Name = "PostgreSQL" },
             @{ Port = 6379; Name = "Redis" },
             @{ Port = 9200; Name = "Elasticsearch" },
-            @{ Port = 9092; Name = "Kafka" }
+            @{ Port = 9092; Name = "Kafka" },
+            @{ Port = 3306; Name = "MySQL Reporting" },
+            @{ Port = 3307; Name = "MySQL Analytics" }
         )
         
         foreach ($service in $infraServices) {
-            if (-not (Wait-ForPort -Port $service.Port -ServiceName $service.Name -TimeoutSeconds 90)) {
-                return $false
+            if (-not (Wait-ForPort -Port $service.Port -ServiceName $service.Name -TimeoutSeconds 120)) {
+                if ($service.Name -eq "MySQL Analytics") {
+                    Write-Warning "MySQL Analytics failed to start - continuing without it"
+                    continue
+                } else {
+                    return $false
+                }
             }
+        }
+        
+        # Verify database connections
+        Write-Status "Verifying database connections..."
+        
+        # Test PostgreSQL
+        try {
+            $pgResult = docker-compose -f $dockerComposeFile exec -T postgres psql -U postgres -c "\l" 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "PostgreSQL connection verified"
+            } else {
+                Write-Warning "PostgreSQL connection test failed"
+            }
+        } catch {
+            Write-Warning "Could not test PostgreSQL connection"
+        }
+        
+        # Test MySQL Reporting
+        try {
+            $mysqlResult = docker-compose -f $dockerComposeFile exec -T mysql mysql -u root -p1234 -e "SHOW DATABASES;" 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "MySQL Reporting connection verified"
+            } else {
+                Write-Warning "MySQL Reporting connection test failed"
+            }
+        } catch {
+            Write-Warning "Could not test MySQL Reporting connection"
         }
         
         return $true
@@ -242,7 +276,7 @@ function Start-Service {
         }
         
         # Wait for the service to be ready
-        if (Wait-ForPort -Port $Service.Port -ServiceName $Service.Name -TimeoutSeconds 120) {
+        if (Wait-ForPort -Port $Service.Port -ServiceName $Service.Name -TimeoutSeconds 180) {
             Write-Success "$($Service.Name) started successfully on port $($Service.Port)"
             return $true
         } else {
@@ -306,7 +340,7 @@ function Show-Summary {
     Write-Host ("=" * 50) -ForegroundColor Cyan
     
     Write-Host ""
-    Write-ColorOutput "Services:" "Yellow"
+    Write-ColorOutput "Microservices:" "Yellow"
     foreach ($service in $Services) {
         if ($service -and $service.Name -and $service.Port) {
             $serviceName = $service.Name.ToString().PadRight(20)
@@ -315,16 +349,29 @@ function Show-Summary {
     }
     
     Write-Host ""
+    Write-ColorOutput "Databases:" "Yellow"
+    Write-Host "  • PostgreSQL (Primary):   localhost:5432" -ForegroundColor White
+    Write-Host "  • MySQL Reporting:        localhost:3306" -ForegroundColor White  
+    Write-Host "  • MySQL Analytics:        localhost:3307" -ForegroundColor White
+    Write-Host "  • Redis (Cache):          localhost:6379" -ForegroundColor White
+    
+    Write-Host ""
     Write-ColorOutput "Infrastructure:" "Yellow"
-    Write-Host "  • PostgreSQL:        localhost:5432" -ForegroundColor White
-    Write-Host "  • Redis:             localhost:6379" -ForegroundColor White  
-    Write-Host "  • Elasticsearch:     http://localhost:9200" -ForegroundColor White
-    Write-Host "  • Kafka:             localhost:9092" -ForegroundColor White
+    Write-Host "  • Elasticsearch:          http://localhost:9200" -ForegroundColor White
+    Write-Host "  • Kafka:                  localhost:9092" -ForegroundColor White
+    Write-Host "  • Zookeeper:              localhost:2181" -ForegroundColor White
+    
+    Write-Host ""
+    Write-ColorOutput "Database Admin:" "Yellow"
+    Write-Host "  • phpMyAdmin (MySQL):     http://localhost:8080" -ForegroundColor Gray
+    Write-Host "    (Run: docker-compose --profile admin up -d)" -ForegroundColor Gray
     
     Write-Host ""
     Write-ColorOutput "API Documentation:" "Yellow"
-    Write-Host "  • Property Service:  http://localhost:8081/swagger-ui.html" -ForegroundColor White
-    Write-Host "  • Booking Service:   http://localhost:8082/swagger-ui.html" -ForegroundColor White
+    Write-Host "  • Property Service:       http://localhost:8081/swagger-ui.html" -ForegroundColor White
+    Write-Host "  • Booking Service:        http://localhost:8082/swagger-ui.html" -ForegroundColor White
+    Write-Host "  • Search Service:         http://localhost:8083/api/search/health" -ForegroundColor White
+    Write-Host "  • User Service:           http://localhost:8084/actuator/health" -ForegroundColor White
     
     Write-Host ""
     Write-ColorOutput "Health Checks:" "Yellow"
@@ -334,6 +381,15 @@ function Show-Summary {
             Write-Host "  • $serviceName http://localhost:$($service.Port)/actuator/health" -ForegroundColor White
         }
     }
+    
+    Write-Host ""
+    Write-ColorOutput "Database Structure:" "Yellow"
+    Write-Host "  • stayhub_properties      (PostgreSQL - Property data)" -ForegroundColor White
+    Write-Host "  • stayhub_bookings        (PostgreSQL - Booking transactions)" -ForegroundColor White
+    Write-Host "  • stayhub_users           (PostgreSQL - User data)" -ForegroundColor White
+    Write-Host "  • stayhub_search          (PostgreSQL - Search data)" -ForegroundColor White
+    Write-Host "  • stayhub_reporting       (MySQL - Read replicas & reports)" -ForegroundColor White
+    Write-Host "  • stayhub_analytics       (MySQL - Heavy analytics queries)" -ForegroundColor White
     
     Write-Host ""
     Write-ColorOutput "⚠️  To stop all services:" "Yellow"

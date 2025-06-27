@@ -55,7 +55,62 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
 
+  # MySQL for read replicas and reporting
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_DATABASE: stayhub_reporting
+      MYSQL_USER: stayhub
+      MYSQL_PASSWORD: 1234
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init-mysql.sql:/docker-entrypoint-initdb.d/init-mysql.sql
+    command: --default-authentication-plugin=mysql_native_password --innodb-buffer-pool-size=512M
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 5s
+      retries: 10
+
+  # MySQL for analytics (heavy queries) - Fixed for MySQL 8.0
+  mysql-analytics:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_DATABASE: stayhub_analytics
+      MYSQL_USER: analytics_user
+      MYSQL_PASSWORD: 1234
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_analytics_data:/var/lib/mysql
+      - ./init-mysql-analytics.sql:/docker-entrypoint-initdb.d/init-analytics.sql
+    command: --default-authentication-plugin=mysql_native_password --innodb-buffer-pool-size=1G --innodb-log-file-size=256M --max-connections=200
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 5s
+      retries: 10
+
+  # Optional: MySQL Admin tool
+  phpmyadmin:
+    image: phpmyadmin:latest
+    environment:
+      PMA_ARBITRARY: 1
+      PMA_HOST: mysql
+      PMA_USER: root
+      PMA_PASSWORD: 1234
+    ports:
+      - "8080:80"
+    depends_on:
+      - mysql
+    profiles:
+      - admin
+
 volumes:
   postgres_data:
   redis_data:
   elasticsearch_data:
+  mysql_data:
+  mysql_analytics_data:
