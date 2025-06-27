@@ -1,0 +1,76 @@
+# Dependencies for StayHub Analytics Engine (Perl)
+
+# Web Framework
+requires 'Mojolicious', '9.35';
+requires 'Mojolicious::Plugin::OpenAPI', '5.09';
+
+# Database
+requires 'DBI', '1.643';
+requires 'DBD::Pg', '3.16.0';
+requires 'DBD::mysql', '4.050';
+requires 'DBIx::Connector', '0.56';
+
+# Cache & Session
+requires 'Redis', '2.000';
+requires 'Cache::Memcached::Fast', '0.28';
+
+# JSON Processing
+requires 'JSON::XS', '4.03';
+requires 'Cpanel::JSON::XS', '4.37';
+
+# Data Processing
+requires 'Text::CSV_XS', '1.52';
+requires 'Excel::Writer::XLSX', '1.11';
+requires 'Spreadsheet::ParseXLSX', '0.27';
+
+# Parallel Processing
+requires 'Parallel::ForkManager', '2.02';
+requires 'MCE', '1.889';
+requires 'MCE::Shared', '1.889';
+
+# Date/Time
+requires 'DateTime', '1.59';
+requires 'DateTime::Format::Pg', '0.16014';
+requires 'DateTime::Format::MySQL', '0.08';
+
+# Statistics & Math
+requires 'Statistics::Descriptive', '3.0801';
+requires 'Math::Round', '0.07';
+requires 'Algorithm::Combinatorics', '0.27';
+
+# HTTP Client
+requires 'HTTP::Tiny', '0.082';
+requires 'LWP::UserAgent', '6.67';
+requires 'Furl', '3.14';
+
+# Monitoring & Logging
+requires 'Log::Log4perl', '1.57';
+requires 'Devel::NYTProf', '6.12';
+
+# Utilities
+requires 'Try::Tiny', '0.31';
+requires 'Scalar::Util', '1.63';
+requires 'List::Util', '1.63';
+requires 'List::MoreUtils', '0.430';
+requires 'Data::Dumper', '2.183';
+
+# Email
+requires 'Email::Sender::Simple', '2.500';
+requires 'Email::Simple', '2.218';
+
+# Testing
+on 'test' => sub {
+    requires 'Test::More', '1.302191';
+    requires 'Test::Mojo', '9.35';
+    requires 'Test::Exception', '0.43';
+    requires 'Test::MockModule', '0.177.0';
+    requires 'Test::PostgreSQL', '1.29';
+    requires 'Test::mysqld', '0.21';
+};
+
+# Development
+on 'develop' => sub {
+    requires 'Perl::Critic', '1.148';
+    requires 'Perl::Tidy', '20230912';
+    requires 'Devel::Cover', '1.40';
+};

@@ -1,3 +1,4 @@
+# .gitlab-ci.yml
 # Complete CI/CD pipeline for StayHub microservices
 
 stages:
@@ -149,8 +150,6 @@ security:dependency-check:
       --enableExperimental 
       --out reports
   artifacts:
-    reports:
-      dependency_scanning: reports/dependency-check-report.json
     paths:
       - reports/
     when: always
@@ -203,17 +202,22 @@ quality:lint:
     - mvn spotbugs:check
   allow_failure: true
 
-# Performance testing
-performance:load-test:
+# Performance testing - removed 'performance' report type
+test:load:
   stage: quality
   image: loadimpact/k6:latest
   script:
     - k6 run --out json=load-test-results.json tests/load/booking-load-test.js
+    - |
+      # Parse results and fail if thresholds not met
+      if k6 inspect load-test-results.json | grep -q "✗"; then
+        echo "Load test thresholds not met"
+        exit 1
+      fi
   artifacts:
     paths:
       - load-test-results.json
-    reports:
-      load_performance: load-performance.json
+    expire_in: 1 week
   only:
     - main
     - develop
@@ -223,6 +227,19 @@ build:booking-service:
   <<: *docker_build
   script:
     - cd services/booking-service
+    - |
+      cat << 'EOF' > Dockerfile
+      FROM maven:3.8-openjdk-17-slim AS build
+      WORKDIR /app
+      COPY pom.xml .
+      COPY src ./src
+      RUN mvn clean package -DskipTests
+      
+      FROM openjdk:17-jdk-slim
+      COPY --from=build /app/target/*.jar app.jar
+      EXPOSE 8082
+      ENTRYPOINT ["java", "-jar", "/app.jar"]
+      EOF
     - docker build -t $CONTAINER_REGISTRY/booking-service:$CI_COMMIT_SHA .
     - docker tag $CONTAINER_REGISTRY/booking-service:$CI_COMMIT_SHA $CONTAINER_REGISTRY/booking-service:latest
     - docker push $CONTAINER_REGISTRY/booking-service:$CI_COMMIT_SHA
@@ -232,6 +249,19 @@ build:property-service:
   <<: *docker_build
   script:
     - cd services/property-service
+    - |
+      cat << 'EOF' > Dockerfile
+      FROM maven:3.8-openjdk-17-slim AS build
+      WORKDIR /app
+      COPY pom.xml .
+      COPY src ./src
+      RUN mvn clean package -DskipTests
+      
+      FROM openjdk:17-jdk-slim
+      COPY --from=build /app/target/*.jar app.jar
+      EXPOSE 8081
+      ENTRYPOINT ["java", "-jar", "/app.jar"]
+      EOF
     - docker build -t $CONTAINER_REGISTRY/property-service:$CI_COMMIT_SHA .
     - docker push $CONTAINER_REGISTRY/property-service:$CI_COMMIT_SHA
 
@@ -240,7 +270,7 @@ build:analytics-engine:
   script:
     - cd services/analytics-engine
     - |
-      cat << EOF > Dockerfile
+      cat << 'EOF' > Dockerfile
       FROM perl:5.36-slim
       RUN apt-get update && apt-get install -y \
           libdbi-perl \
@@ -289,8 +319,7 @@ test:staging-smoke:
   artifacts:
     paths:
       - newman-results.json
-    reports:
-      junit: newman-results.json
+    expire_in: 1 week
   dependencies:
     - deploy:staging
   only:
@@ -304,11 +333,41 @@ deploy:production:
   image: alpine/helm:${HELM_VERSION}
   script:
     - kubectl config use-context production
+    - |
+      # Create Helm values file
+      cat << EOF > values.yaml
+      image:
+        repository: $CONTAINER_REGISTRY
+        tag: $CI_COMMIT_SHA
+      
+      bookingService:
+        replicas: 3
+        resources:
+          requests:
+            memory: "768Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+      
+      propertyService:
+        replicas: 2
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+      
+      analyticsEngine:
+        replicas: 2
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+      EOF
     - helm upgrade --install stayhub ./helm/stayhub 
       --namespace stayhub-prod 
       --create-namespace 
-      --set image.tag=$CI_COMMIT_SHA 
-      --set image.repository=$CONTAINER_REGISTRY 
+      --values values.yaml 
       --wait 
       --timeout 10m
     - kubectl get pods -n stayhub-prod

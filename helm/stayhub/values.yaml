@@ -1,0 +1,277 @@
+# Default values for StayHub platform
+
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: "fast-ssd"
+
+# Image configuration
+image:
+  repository: stayhub
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+# Service configurations
+bookingService:
+  name: booking-service
+  replicaCount: 3
+  image:
+    repository: stayhub/booking-service
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8082
+  resources:
+    requests:
+      memory: "768Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  env:
+    SPRING_PROFILES_ACTIVE: "k8s"
+    JAVA_OPTS: "-Xms512m -Xmx896m -XX:+UseG1GC"
+
+propertyService:
+  name: property-service
+  replicaCount: 2
+  image:
+    repository: stayhub/property-service
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8081
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "768Mi"
+      cpu: "500m"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+
+analyticsEngine:
+  name: analytics-engine
+  replicaCount: 2
+  image:
+    repository: stayhub/analytics-engine
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3000
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+searchService:
+  name: search-service
+  replicaCount: 2
+  image:
+    repository: stayhub/search-service
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8083
+
+userService:
+  name: user-service
+  replicaCount: 2
+  image:
+    repository: stayhub/user-service
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8084
+
+# Database configurations
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "PostgresStr0ng!"
+    username: "stayhub"
+    password: "StayHub123!"
+    database: "stayhub"
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: "fast-ssd"
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+mysql:
+  enabled: true
+  auth:
+    rootPassword: "MySQLR00t!"
+    database: "stayhub_reporting"
+    username: "reporting"
+    password: "Report123!"
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+  secondary:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      size: 20Gi
+
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: "RedisP@ss123"
+  master:
+    persistence:
+      enabled: true
+      size: 8Gi
+  replica:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      size: 8Gi
+  sentinel:
+    enabled: true
+    quorum: 2
+
+kafka:
+  enabled: true
+  auth:
+    clientProtocol: sasl
+    interBrokerProtocol: sasl
+    sasl:
+      mechanism: plain
+      jaas:
+        clientUsers:
+          - stayhub
+        clientPasswords:
+          - "KafkaP@ss123"
+  persistence:
+    enabled: true
+    size: 50Gi
+  replicaCount: 3
+  numPartitions: 10
+  defaultReplicationFactor: 3
+
+elasticsearch:
+  enabled: true
+  replicas: 3
+  minimumMasterNodes: 2
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+  volumeClaimTemplate:
+    accessModes: ["ReadWriteOnce"]
+    storageClassName: "fast-ssd"
+    resources:
+      requests:
+        storage: 30Gi
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  hosts:
+    - host: api.stayhub.com
+      paths:
+        - path: /api/bookings
+          pathType: Prefix
+          backend:
+            service: booking-service
+            port: 80
+        - path: /api/properties
+          pathType: Prefix
+          backend:
+            service: property-service
+            port: 80
+        - path: /api/analytics
+          pathType: Prefix
+          backend:
+            service: analytics-engine
+            port: 80
+        - path: /api/search
+          pathType: Prefix
+          backend:
+            service: search-service
+            port: 80
+        - path: /api/users
+          pathType: Prefix
+          backend:
+            service: user-service
+            port: 80
+  tls:
+    - secretName: stayhub-tls
+      hosts:
+        - api.stayhub.com
+
+# Monitoring
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+  grafana:
+    enabled: true
+    adminPassword: "GrafanaAdmin123!"
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+
+# Security
+security:
+  podSecurityPolicy:
+    enabled: true
+  networkPolicy:
+    enabled: true
+    allowedNamespaces:
+      - monitoring
+      - ingress-nginx
+
+# Service mesh (optional)
+istio:
+  enabled: false
+  mtls:
+    enabled: true
+
+# Backup configuration
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: 30  # days
