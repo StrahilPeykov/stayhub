@@ -38,7 +38,7 @@ spring:
     analytics:
       url: jdbc:mysql://localhost:3307/stayhub_analytics?useSSL=false&serverTimezone=UTC
       username: analytics_user
-      password: ${ANALYTICS_PASSWORD:analytics123}
+      password: ${ANALYTICS_PASSWORD:1234}
       driver-class-name: com.mysql.cj.jdbc.Driver
       hikari:
         pool-name: MySQL-Analytics
