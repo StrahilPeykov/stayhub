@@ -7,6 +7,10 @@ param(
     [switch]$Verbose
 )
 
+# Set console encoding to UTF-8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 # Configuration - Updated to handle Java services only
 $JavaServices = @(
     @{ Name = "property-service"; Port = 8081; Path = "services/property-service" },
@@ -18,7 +22,7 @@ $JavaServices = @(
 # Analytics Engine (Perl) will be handled separately
 $AnalyticsEngine = @{ Name = "analytics-engine"; Port = 3000; Path = "services/analytics-engine" }
 
-$InfraPorts = @(5432, 6379, 9200, 9092, 2181, 3306, 3307)
+$InfraPorts = @(5432, 6379, 9200, 9092, 2181, 3316, 3307)  # Changed MySQL from 3306 to 3316
 $ServicePorts = @(8081, 8082, 8083, 8084, 3000)
 $AllPorts = $InfraPorts + $ServicePorts
 
@@ -30,30 +34,63 @@ function Write-ColorOutput {
         [Parameter(Mandatory = $true)][string]$Message,
         [string]$Color = "White"
     )
-    $cleanColor = ($Color -replace '\p{C}', '')
-    try {
-        $parsed = [Enum]::Parse([System.ConsoleColor], $cleanColor, $true)
-    }
-    catch {
-        $parsed = [System.ConsoleColor]::White
-    }
-    Write-Host $Message -ForegroundColor $parsed
+    Write-Host $Message -ForegroundColor $Color
 }
 
-function Write-Status  { param([string]$Message) Write-ColorOutput ">> $Message" "Cyan"   }
-function Write-Success { param([string]$Message) Write-ColorOutput "OK $Message" "Green"  }
-function Write-Warning { param([string]$Message) Write-ColorOutput "!!  $Message" "Yellow" }
-function Write-Error   { param([string]$Message) Write-ColorOutput "XX $Message" "Red"    }
+function Write-Status  { param([string]$Message) Write-ColorOutput "[*] $Message" "Cyan"   }
+function Write-Success { param([string]$Message) Write-ColorOutput "[+] $Message" "Green"  }
+function Write-Warning { param([string]$Message) Write-ColorOutput "[!] $Message" "Yellow" }
+function Write-Error   { param([string]$Message) Write-ColorOutput "[X] $Message" "Red"    }
 
 function Test-Port {
     param([int]$Port)
     try {
-        $connection = Test-NetConnection -ComputerName "localhost" -Port $Port -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
-        return $connection.TcpTestSucceeded
+        $tcpClient = New-Object System.Net.Sockets.TcpClient
+        $connect = $tcpClient.BeginConnect("localhost", $Port, $null, $null)
+        $wait = $connect.AsyncWaitHandle.WaitOne(1000, $false)
+        
+        if ($wait) {
+            try {
+                $tcpClient.EndConnect($connect)
+                $tcpClient.Close()
+                return $true
+            }
+            catch {
+                return $false
+            }
+        }
+        else {
+            $tcpClient.Close()
+            return $false
+        }
     }
     catch {
         return $false
     }
+}
+
+function Find-ProcessUsingPort {
+    param([int]$Port)
+    try {
+        $netstat = netstat -ano | Select-String ":$Port\s" | Select-String "LISTENING"
+        if ($netstat) {
+            $parts = $netstat -split '\s+'
+            $processId = $parts[-1]
+            if ($processId -match '^\d+$') {
+                $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
+                if ($process) {
+                    return @{
+                        ProcessName = $process.ProcessName
+                        PID = $processId
+                    }
+                }
+            }
+        }
+    }
+    catch {
+        # Ignore errors
+    }
+    return $null
 }
 
 function Wait-ForPort {
@@ -85,9 +122,6 @@ function Test-Prerequisites {
         @{ Command = "docker"; Args = "--version"; Name = "Docker" },
         @{ Command = "docker-compose"; Args = "--version"; Name = "Docker Compose" }
     )
-    
-    # Check for Perl (for analytics engine)
-    $perlCheck = @{ Command = "perl"; Args = "-v"; Name = "Perl" }
     
     $allGood = $true
     foreach ($prereq in $prerequisites) {
@@ -127,14 +161,24 @@ function Test-PortsAvailable {
     Write-Status "Checking if required ports are available..."
     
     $busyPorts = @()
+    $portDetails = @{}
+    
     foreach ($port in $AllPorts) {
         if (Test-Port -Port $port) {
             $busyPorts += $port
+            $processInfo = Find-ProcessUsingPort -Port $port
+            if ($processInfo) {
+                $portDetails[$port] = "$($processInfo.ProcessName) (PID: $($processInfo.PID))"
+            }
         }
     }
     
     if ($busyPorts.Count -gt 0) {
-        Write-Error "The following ports are already in use: $($busyPorts -join ', ')"
+        Write-Error "The following ports are already in use:"
+        foreach ($port in $busyPorts) {
+            $detail = if ($portDetails[$port]) { " - Used by: $($portDetails[$port])" } else { "" }
+            Write-Host "  Port $port$detail" -ForegroundColor Red
+        }
         Write-Warning "Please stop any services using these ports or use different ports"
         return $false
     }
@@ -150,12 +194,21 @@ function Initialize-Databases {
         # Wait a bit for PostgreSQL to be fully ready
         Start-Sleep -Seconds 5
         
+        # Find the correct container name
+        $postgresContainer = docker ps --filter "name=postgres" --format "{{.Names}}" | Select-Object -First 1
+        if (-not $postgresContainer) {
+            Write-Error "PostgreSQL container not found"
+            return $false
+        }
+        
+        Write-Status "Using PostgreSQL container: $postgresContainer"
+        
         # Create databases using docker exec
         $databases = @("stayhub_properties", "stayhub_bookings", "stayhub_users", "stayhub_search")
         
         foreach ($db in $databases) {
             Write-Status "Creating database: $db"
-            $result = docker exec infrastructure-docker-postgres-1 psql -U postgres -c "CREATE DATABASE $db;" 2>&1
+            $result = docker exec $postgresContainer psql -U postgres -c "CREATE DATABASE $db;" 2>&1
             if ($LASTEXITCODE -ne 0 -and $result -notlike "*already exists*") {
                 Write-Warning "Could not create database $db : $result"
             } else {
@@ -165,7 +218,7 @@ function Initialize-Databases {
         
         # Enable UUID extension on each database
         foreach ($db in $databases) {
-            docker exec infrastructure-docker-postgres-1 psql -U postgres -d $db -c "CREATE EXTENSION IF NOT EXISTS ""uuid-ossp"";" 2>&1 | Out-Null
+            docker exec $postgresContainer psql -U postgres -d $db -c "CREATE EXTENSION IF NOT EXISTS ""uuid-ossp"";" 2>&1 | Out-Null
         }
         
         Write-Success "PostgreSQL databases initialized"
@@ -174,16 +227,19 @@ function Initialize-Databases {
         Write-Status "Creating MySQL databases..."
         Start-Sleep -Seconds 5
         
-        # For main MySQL
-        docker exec infrastructure-docker-mysql-1 mysql -u root -p1234 -e "CREATE DATABASE IF NOT EXISTS stayhub_reporting;" 2>&1 | Out-Null
-        
-        # For analytics MySQL (if it exists)
-        $analyticsContainer = docker ps --filter "name=mysql-analytics" --format "{{.Names}}" 2>$null
-        if ($analyticsContainer) {
-            docker exec $analyticsContainer mysql -u root -p1234 -e "CREATE DATABASE IF NOT EXISTS stayhub_analytics;" 2>&1 | Out-Null
+        # Find MySQL container
+        $mysqlContainer = docker ps --filter "name=mysql" --format "{{.Names}}" | Where-Object { $_ -notlike "*analytics*" } | Select-Object -First 1
+        if ($mysqlContainer) {
+            docker exec $mysqlContainer mysql -u root -p1234 -e "CREATE DATABASE IF NOT EXISTS stayhub_reporting;" 2>&1 | Out-Null
+            Write-Success "MySQL reporting database initialized"
         }
         
-        Write-Success "MySQL databases initialized"
+        # For analytics MySQL (if it exists)
+        $analyticsContainer = docker ps --filter "name=mysql-analytics" --format "{{.Names}}" | Select-Object -First 1
+        if ($analyticsContainer) {
+            docker exec $analyticsContainer mysql -u root -p1234 -e "CREATE DATABASE IF NOT EXISTS stayhub_analytics;" 2>&1 | Out-Null
+            Write-Success "MySQL analytics database initialized"
+        }
         
         return $true
     }
@@ -201,20 +257,32 @@ function Start-Infrastructure {
     
     Write-Status "Starting infrastructure services..."
     
-    $dockerComposeFile = "infrastructure/docker/docker-compose.dev.yml"
+    # Look for docker-compose file in the correct location
+    $dockerComposeFile = Join-Path $PSScriptRoot "..\infrastructure\docker\docker-compose.dev.yml"
+    $dockerComposeFile = [System.IO.Path]::GetFullPath($dockerComposeFile)
+    
     if (-not (Test-Path $dockerComposeFile)) {
         Write-Error "Docker compose file not found: $dockerComposeFile"
         return $false
     }
     
+    Write-Status "Using docker-compose file: $dockerComposeFile"
+    
     try {
+        # Change to the directory containing docker-compose file
+        $dockerDir = Split-Path $dockerComposeFile -Parent
+        Push-Location $dockerDir
+        
         # Start infrastructure
-        $result = docker-compose -f $dockerComposeFile up -d 2>&1
+        $result = docker-compose -f "docker-compose.dev.yml" up -d 2>&1
         if ($LASTEXITCODE -ne 0) {
             Write-Error "Failed to start infrastructure services"
             Write-Host $result
+            Pop-Location
             return $false
         }
+        
+        Pop-Location
         
         Write-Success "Infrastructure services started"
         
@@ -224,11 +292,11 @@ function Start-Infrastructure {
             @{ Port = 6379; Name = "Redis" },
             @{ Port = 9200; Name = "Elasticsearch" },
             @{ Port = 9092; Name = "Kafka" },
-            @{ Port = 3306; Name = "MySQL Reporting" }
+            @{ Port = 3316; Name = "MySQL Reporting" }  # Changed from 3306 to 3316
         )
         
         # MySQL Analytics is optional
-        if (Test-Port -Port 3307) {
+        if ((docker ps --filter "name=mysql-analytics" --format "{{.Names}}").Count -gt 0) {
             $infraServices += @{ Port = 3307; Name = "MySQL Analytics" }
         }
         
@@ -292,6 +360,7 @@ function Start-JavaService {
         
         # Set environment variables
         $env:SERVER_PORT = $Service.Port
+        $env:DB_PASSWORD = "1234"
         
         # Start the service in a new process
         $processArgs = @{
@@ -408,6 +477,12 @@ function Start-AnalyticsEngine {
 function Start-AllServices {
     Write-Status "Starting all microservices..."
     
+    # Create logs directory if it doesn't exist
+    $logsDir = "logs"
+    if (-not (Test-Path $logsDir)) {
+        New-Item -ItemType Directory -Path $logsDir | Out-Null
+    }
+    
     # Start Java services
     foreach ($service in $JavaServices) {
         if (-not (Start-JavaService -Service $service)) {
@@ -455,45 +530,45 @@ function Show-Summary {
     Write-ColorOutput "Microservices:" "Yellow"
     foreach ($service in $JavaServices) {
         $serviceName = $service.Name.ToString().PadRight(20)
-        Write-Host "  • $serviceName http://localhost:$($service.Port)" -ForegroundColor White
+        Write-Host "  - $serviceName http://localhost:$($service.Port)" -ForegroundColor White
     }
     
     # Check if analytics is running
     if (Test-Port -Port 3000) {
-        Write-Host "  • analytics-engine      http://localhost:3000" -ForegroundColor White
+        Write-Host "  - analytics-engine      http://localhost:3000" -ForegroundColor White
     }
     
     Write-Host ""
     Write-ColorOutput "Databases:" "Yellow"
-    Write-Host "  • PostgreSQL (Primary):   localhost:5432" -ForegroundColor White
-    Write-Host "  • MySQL Reporting:        localhost:3306" -ForegroundColor White  
+    Write-Host "  - PostgreSQL (Primary):   localhost:5432" -ForegroundColor White
+    Write-Host "  - MySQL Reporting:        localhost:3316" -ForegroundColor White  # Changed from 3306
     if (Test-Port -Port 3307) {
-        Write-Host "  • MySQL Analytics:        localhost:3307" -ForegroundColor White
+        Write-Host "  - MySQL Analytics:        localhost:3307" -ForegroundColor White
     }
-    Write-Host "  • Redis (Cache):          localhost:6379" -ForegroundColor White
+    Write-Host "  - Redis (Cache):          localhost:6379" -ForegroundColor White
     
     Write-Host ""
     Write-ColorOutput "Infrastructure:" "Yellow"
-    Write-Host "  • Elasticsearch:          http://localhost:9200" -ForegroundColor White
-    Write-Host "  • Kafka:                  localhost:9092" -ForegroundColor White
-    Write-Host "  • Zookeeper:              localhost:2181" -ForegroundColor White
+    Write-Host "  - Elasticsearch:          http://localhost:9200" -ForegroundColor White
+    Write-Host "  - Kafka:                  localhost:9092" -ForegroundColor White
+    Write-Host "  - Zookeeper:              localhost:2181" -ForegroundColor White
     
     Write-Host ""
     Write-ColorOutput "API Documentation:" "Yellow"
-    Write-Host "  • Property Service:       http://localhost:8081/swagger-ui.html" -ForegroundColor White
-    Write-Host "  • Booking Service:        http://localhost:8082/swagger-ui.html" -ForegroundColor White
-    Write-Host "  • Search Service:         http://localhost:8083/api/search/health" -ForegroundColor White
-    Write-Host "  • User Service:           http://localhost:8084/actuator/health" -ForegroundColor White
+    Write-Host "  - Property Service:       http://localhost:8081/swagger-ui.html" -ForegroundColor White
+    Write-Host "  - Booking Service:        http://localhost:8082/swagger-ui.html" -ForegroundColor White
+    Write-Host "  - Search Service:         http://localhost:8083/api/search/health" -ForegroundColor White
+    Write-Host "  - User Service:           http://localhost:8084/actuator/health" -ForegroundColor White
     
     Write-Host ""
     Write-ColorOutput "Health Checks:" "Yellow"
     foreach ($service in $JavaServices) {
         $serviceName = $service.Name.ToString().PadRight(20)
-        Write-Host "  • $serviceName http://localhost:$($service.Port)/actuator/health" -ForegroundColor White
+        Write-Host "  - $serviceName http://localhost:$($service.Port)/actuator/health" -ForegroundColor White
     }
     
     Write-Host ""
-    Write-ColorOutput "⚠️  To stop all services:" "Yellow"
+    Write-ColorOutput "To stop all services:" "Yellow"
     Write-Host "    .\scripts\stop-all-windows.ps1" -ForegroundColor White
     Write-Host ""
 }

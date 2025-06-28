@@ -6,6 +6,10 @@ param(
     [switch]$Force
 )
 
+# Set console encoding to UTF-8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 # Colors for output
 $Green = "Green"
 $Yellow = "Yellow"
@@ -19,22 +23,22 @@ function Write-ColorOutput {
 
 function Write-Status {
     param([string]$Message)
-    Write-ColorOutput "🔄 $Message" $Cyan
+    Write-ColorOutput "[*] $Message" $Cyan
 }
 
 function Write-Success {
     param([string]$Message)
-    Write-ColorOutput "✅ $Message" $Green
+    Write-ColorOutput "[+] $Message" $Green
 }
 
 function Write-Warning {
     param([string]$Message)
-    Write-ColorOutput "⚠️  $Message" $Yellow
+    Write-ColorOutput "[!] $Message" $Yellow
 }
 
 function Write-Error {
     param([string]$Message)
-    Write-ColorOutput "❌ $Message" $Red
+    Write-ColorOutput "[X] $Message" $Red
 }
 
 function Stop-ServicesByPid {
@@ -44,16 +48,16 @@ function Stop-ServicesByPid {
     $servicesStopped = 0
     
     if (Test-Path ".pids") {
-        $pidFiles = Get-ChildItem ".pids" -Filter "*.pid"
+        $processIdFiles = Get-ChildItem ".pids" -Filter "*.pid"
         
-        foreach ($pidFile in $pidFiles) {
-            $serviceName = $pidFile.BaseName
+        foreach ($processIdFile in $processIdFiles) {
+            $serviceName = $processIdFile.BaseName
             try {
-                $pid = Get-Content $pidFile.FullName -ErrorAction Stop
-                $process = Get-Process -Id $pid -ErrorAction Stop
+                $processId = Get-Content $processIdFile.FullName -ErrorAction Stop
+                $process = Get-Process -Id $processId -ErrorAction Stop
                 
                 $servicesFound++
-                Write-Status "Stopping $serviceName (PID: $pid)..."
+                Write-Status "Stopping $serviceName (PID: $processId)..."
                 
                 if ($Force) {
                     $process.Kill()
@@ -72,7 +76,7 @@ function Stop-ServicesByPid {
                 Write-Warning "Could not stop $serviceName (process may have already exited)"
             }
             finally {
-                Remove-Item $pidFile.FullName -ErrorAction SilentlyContinue
+                Remove-Item $processIdFile.FullName -ErrorAction SilentlyContinue
             }
         }
         
@@ -96,33 +100,39 @@ function Stop-ServicesByPid {
 function Stop-ServicesByPort {
     Write-Status "Stopping services by port..."
     
-    $ports = @(8081, 8082, 8083, 8084)
+    $ports = @(8081, 8082, 8083, 8084, 3000)
     $servicesStopped = 0
     
     foreach ($port in $ports) {
         try {
-            $connections = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
-            foreach ($connection in $connections) {
-                $processId = $connection.OwningProcess
-                if ($processId -and $processId -ne 0) {
-                    try {
-                        $process = Get-Process -Id $processId -ErrorAction Stop
-                        Write-Status "Stopping process on port $port (PID: $processId, Name: $($process.ProcessName))"
-                        
-                        if ($Force) {
-                            $process.Kill()
-                        } else {
-                            $process.CloseMainWindow()
-                            if (-not $process.WaitForExit(5000)) {
+            # Use netstat to find process using port
+            $netstatOutput = netstat -ano | Select-String ":$port\s" | Select-String "LISTENING"
+            
+            if ($netstatOutput) {
+                foreach ($line in $netstatOutput) {
+                    $parts = $line -split '\s+'
+                    $processId = $parts[-1]
+                    
+                    if ($processId -match '^\d+$') {
+                        try {
+                            $process = Get-Process -Id $processId -ErrorAction Stop
+                            Write-Status "Stopping process on port $port (PID: $processId, Name: $($process.ProcessName))"
+                            
+                            if ($Force) {
                                 $process.Kill()
+                            } else {
+                                $process.CloseMainWindow()
+                                if (-not $process.WaitForExit(5000)) {
+                                    $process.Kill()
+                                }
                             }
+                            
+                            $servicesStopped++
+                            Write-Success "Stopped process on port $port"
                         }
-                        
-                        $servicesStopped++
-                        Write-Success "Stopped process on port $port"
-                    }
-                    catch {
-                        Write-Warning "Could not stop process $processId on port $port : $_"
+                        catch {
+                            Write-Warning "Could not stop process $processId on port $port : $_"
+                        }
                     }
                 }
             }
@@ -175,15 +185,32 @@ function Stop-ServicesByName {
                 Write-Warning "Could not stop Java process $($process.Id): $_"
             }
         }
+        
+        # Also check for Perl processes (analytics engine)
+        $perlProcesses = Get-Process -Name "perl" -ErrorAction SilentlyContinue
+        foreach ($process in $perlProcesses) {
+            try {
+                $commandLine = (Get-WmiObject Win32_Process -Filter "ProcessId = $($process.Id)").CommandLine
+                if ($commandLine -and $commandLine -like "*app.pl*") {
+                    Write-Status "Stopping Perl analytics process (PID: $($process.Id))"
+                    $process.Kill()
+                    $servicesStopped++
+                    Write-Success "Stopped Perl analytics process"
+                }
+            }
+            catch {
+                # Ignore errors
+            }
+        }
     }
     catch {
-        Write-Warning "Error searching for Java processes: $_"
+        Write-Warning "Error searching for processes: $_"
     }
     
     if ($servicesStopped -eq 0) {
         Write-Warning "No Spring Boot services found running"
     } else {
-        Write-Success "Stopped $servicesStopped Java processes"
+        Write-Success "Stopped $servicesStopped processes"
     }
     
     return $servicesStopped
@@ -230,41 +257,72 @@ function Stop-Infrastructure {
     
     Write-Status "Stopping infrastructure services..."
     
-    $dockerComposeFile = "infrastructure/docker/docker-compose.dev.yml"
+    # Look for docker-compose file in the correct location
+    $dockerComposeFile = Join-Path $PSScriptRoot "..\infrastructure\docker\docker-compose.dev.yml"
+    $dockerComposeFile = [System.IO.Path]::GetFullPath($dockerComposeFile)
+    
     if (-not (Test-Path $dockerComposeFile)) {
         Write-Warning "Docker compose file not found: $dockerComposeFile"
         return
     }
     
     try {
-        $result = docker-compose -f $dockerComposeFile down 2>&1
+        # Change to the directory containing docker-compose file
+        $dockerDir = Split-Path $dockerComposeFile -Parent
+        Push-Location $dockerDir
+        
+        $result = docker-compose -f "docker-compose.dev.yml" down 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-Success "Infrastructure services stopped"
         } else {
             Write-Warning "Some issues stopping infrastructure services:"
             Write-Host $result
         }
+        
+        Pop-Location
     }
     catch {
         Write-Error "Error stopping infrastructure: $_"
+        Pop-Location -ErrorAction SilentlyContinue
+    }
+}
+
+function Test-Port {
+    param([int]$Port)
+    try {
+        $tcpClient = New-Object System.Net.Sockets.TcpClient
+        $connect = $tcpClient.BeginConnect("localhost", $Port, $null, $null)
+        $wait = $connect.AsyncWaitHandle.WaitOne(1000, $false)
+        
+        if ($wait) {
+            try {
+                $tcpClient.EndConnect($connect)
+                $tcpClient.Close()
+                return $true
+            }
+            catch {
+                return $false
+            }
+        }
+        else {
+            $tcpClient.Close()
+            return $false
+        }
+    }
+    catch {
+        return $false
     }
 }
 
 function Test-PortsStillBusy {
     Write-Status "Checking if service ports are now free..."
     
-    $ports = @(8081, 8082, 8083, 8084)
+    $ports = @(8081, 8082, 8083, 8084, 3000)
     $busyPorts = @()
     
     foreach ($port in $ports) {
-        try {
-            $connection = Test-NetConnection -ComputerName "localhost" -Port $port -WarningAction SilentlyContinue
-            if ($connection.TcpTestSucceeded) {
-                $busyPorts += $port
-            }
-        }
-        catch {
-            # Port is free
+        if (Test-Port -Port $port) {
+            $busyPorts += $port
         }
     }
     
@@ -279,8 +337,7 @@ function Test-PortsStillBusy {
             Start-Sleep -Seconds 2
             $stillBusy = @()
             foreach ($port in $busyPorts) {
-                $connection = Test-NetConnection -ComputerName "localhost" -Port $port -WarningAction SilentlyContinue
-                if ($connection.TcpTestSucceeded) {
+                if (Test-Port -Port $port) {
                     $stillBusy += $port
                 }
             }
@@ -305,8 +362,8 @@ function Test-PortsStillBusy {
 
 # Main execution
 try {
-    Write-ColorOutput "🛑 Stopping StayHub Platform..." $Yellow
-    Write-Host "=" * 50 -ForegroundColor $Cyan
+    Write-ColorOutput "Stopping StayHub Platform..." $Yellow
+    Write-Host ("=" * 50) -ForegroundColor $Cyan
     Write-Host ""
     
     $totalStopped = 0
@@ -340,19 +397,19 @@ try {
     
     Write-Host ""
     if ($totalStopped -gt 0) {
-        Write-Success "✅ Successfully stopped $totalStopped services"
+        Write-Success "Successfully stopped $totalStopped services"
     } else {
-        Write-Warning "⚠️  No services were found running"
+        Write-Warning "No services were found running"
     }
     
     if (-not $KeepInfrastructure) {
-        Write-Success "✅ Infrastructure services stopped"
+        Write-Success "Infrastructure services stopped"
     }
     
     if ($allPortsFree) {
-        Write-ColorOutput "🏁 StayHub Platform shutdown complete!" $Green
+        Write-ColorOutput "StayHub Platform shutdown complete!" $Green
     } else {
-        Write-ColorOutput "⚠️  Platform shutdown completed with warnings" $Yellow
+        Write-ColorOutput "Platform shutdown completed with warnings" $Yellow
         Write-Host "Some ports may still be in use. Consider running with -Force flag." -ForegroundColor Yellow
     }
 }
