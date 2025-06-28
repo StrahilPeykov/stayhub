@@ -67,10 +67,9 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./init-mysql.sql:/docker-entrypoint-initdb.d/init-mysql.sql
     command: --default-authentication-plugin=mysql_native_password --innodb-buffer-pool-size=512M
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p1234"]
       timeout: 5s
       retries: 10
 
