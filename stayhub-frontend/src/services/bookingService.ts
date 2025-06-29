@@ -1,64 +1,78 @@
-import { propertyApi, handleApiResponse } from '@/lib/api/client';
-import { Property, PaginatedResponse } from '@/lib/types';
+import { bookingApi, handleApiResponse } from '@/lib/api/client';
+import { Booking, RoomType, AvailabilityResponse, PaginatedResponse } from '@/lib/types';
 
-export const propertyService = {
-  async getProperties(params?: {
-    city?: string;
-    lat?: number;
-    lon?: number;
-    radius?: number;
-    page?: number;
-    size?: number;
-  }): Promise<Property[]> {
-    return handleApiResponse(
-      propertyApi.get('/api/properties', { params })
-    );
-  },
-
-  async getPropertyById(id: string): Promise<Property> {
-    return handleApiResponse(
-      propertyApi.get(`/api/properties/${id}`)
-    );
-  },
-
-  async searchProperties(params: {
-    query?: string;
-    city?: string;
+export const bookingService = {
+  async createBooking(bookingData: {
+    propertyId: string;
+    userId: string;
+    roomTypeId: string;
     checkIn: string;
     checkOut: string;
-    guests: number;
-    priceMin?: number;
-    priceMax?: number;
-    amenities?: string[];
-  }): Promise<PaginatedResponse<Property>> {
+    numberOfRooms: number;
+    numberOfGuests: number;
+    specialRequests?: string;
+  }): Promise<Booking> {
     return handleApiResponse(
-      propertyApi.get('/api/properties/search', { params })
+      bookingApi.post('/api/v1/bookings', bookingData)
     );
   },
 
-  async getNearbyProperties(
-    lat: number,
-    lon: number,
-    radius: number = 10
-  ): Promise<Property[]> {
+  async getBooking(id: string): Promise<Booking> {
     return handleApiResponse(
-      propertyApi.get('/api/properties', {
-        params: { lat, lon, radius }
-      })
+      bookingApi.get(`/api/v1/bookings/${id}`)
     );
   },
 
-  async getFeaturedProperties(): Promise<Property[]> {
+  async getBookingByConfirmationCode(code: string): Promise<Booking> {
     return handleApiResponse(
-      propertyApi.get('/api/properties/featured')
+      bookingApi.get(`/api/v1/bookings/confirmation/${code}`)
     );
   },
 
-  async getPropertyReviews(propertyId: string, page: number = 1, size: number = 10) {
+  async getUserBookings(userId: string, page: number = 0, size: number = 20): Promise<PaginatedResponse<Booking>> {
     return handleApiResponse(
-      propertyApi.get(`/api/properties/${propertyId}/reviews`, {
+      bookingApi.get(`/api/v1/bookings/user/${userId}`, {
         params: { page, size }
       })
     );
-  }
+  },
+
+  async cancelBooking(id: string, reason?: string): Promise<Booking> {
+    return handleApiResponse(
+      bookingApi.post(`/api/v1/bookings/${id}/cancel`, null, {
+        params: { reason }
+      })
+    );
+  },
+
+  async checkAvailability(params: {
+    propertyId: string;
+    roomTypeId: string;
+    checkIn: string;
+    checkOut: string;
+  }): Promise<AvailabilityResponse> {
+    return handleApiResponse(
+      bookingApi.get('/api/v1/bookings/availability', { params })
+    );
+  },
+
+  async getRoomTypes(propertyId: string): Promise<RoomType[]> {
+    return handleApiResponse(
+      bookingApi.get('/api/v1/room-types', {
+        params: { propertyId }
+      })
+    );
+  },
+
+  async createRoomType(roomType: Omit<RoomType, 'id'>): Promise<RoomType> {
+    return handleApiResponse(
+      bookingApi.post('/api/v1/room-types', roomType)
+    );
+  },
+
+  async updateRoomType(id: string, roomType: Partial<RoomType>): Promise<RoomType> {
+    return handleApiResponse(
+      bookingApi.put(`/api/v1/room-types/${id}`, roomType)
+    );
+  },
 };

@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { GuestSelector } from '@/components/search/GuestSelector'
 import { LocationSearch } from '@/components/search/LocationSearch'
-import { useAna lytics } from '@/lib/hooks/useAnalytics'
+import { useAnalytics } from '@/lib/hooks/useAnalytics'
 
 export function SearchBar() {
   const router = useRouter()
