@@ -64,7 +64,7 @@ services:
       MYSQL_USER: stayhub
       MYSQL_PASSWORD: 1234
     ports:
-      - "3306:3306"
+      - "3316:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     command: --default-authentication-plugin=mysql_native_password --innodb-buffer-pool-size=512M
