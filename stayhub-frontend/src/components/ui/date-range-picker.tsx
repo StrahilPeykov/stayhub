@@ -1,4 +1,3 @@
-// src/components/ui/date-range-picker.tsx
 'use client'
 
 import { useState } from 'react'
@@ -20,9 +19,11 @@ interface DateRangePickerProps {
   onChange: (value: { from: Date | undefined; to: Date | undefined }) => void
   minDate?: Date
   placeholder?: string
+  className?: string
+  disabled?: boolean
 }
 
-export function DateRangePicker({ value, onChange, minDate, placeholder = "Select dates" }: DateRangePickerProps) {
+export function DateRangePicker({ value, onChange, minDate, placeholder = "Select dates", className, disabled }: DateRangePickerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selecting, setSelecting] = useState<'from' | 'to' | null>(null)

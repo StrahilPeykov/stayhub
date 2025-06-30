@@ -1,23 +1,50 @@
+'use client'
+
 import { Suspense } from 'react'
+import { motion } from 'framer-motion'
 import { HeroSection } from '@/components/home/HeroSection'
 import { FeaturedProperties } from '@/components/home/FeaturedProperties'
 import { PopularDestinations } from '@/components/home/PopularDestinations'
 import { TrustIndicators } from '@/components/home/TrustIndicators'
 import { SearchBarSkeleton } from '@/components/ui/skeletons'
+import { Testimonials } from '@/components/home/Testimonials'
+import { Newsletter } from '@/components/home/Newsletter'
 
 export default function HomePage() {
   return (
     <div className="flex flex-col">
       {/* Hero Section with Search */}
-      <section className="relative bg-gradient-to-br from-blue-600 to-blue-800 text-white">
-        <div className="absolute inset-0 bg-black/20" />
-        <div className="relative z-10 container mx-auto px-4 py-20 lg:py-32">
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 text-center">
-            Find Your Perfect Stay
-          </h1>
-          <p className="text-xl md:text-2xl text-center mb-12 text-blue-50">
-            Discover amazing places to stay around the world
-          </p>
+      <section className="relative min-h-[600px] flex items-center">
+        {/* Background Image with Overlay */}
+        <div className="absolute inset-0 z-0">
+          <div 
+            className="absolute inset-0 bg-cover bg-center"
+            style={{
+              backgroundImage: `url('https://images.unsplash.com/photo-1564501049412-61c2a3083791?w=1920&h=1080&fit=crop&crop=center')`,
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/50" />
+        </div>
+        
+        {/* Hero Content */}
+        <div className="relative z-10 container mx-auto px-4 py-20">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="text-center mb-12"
+          >
+            <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-6 text-white">
+              Find Your Perfect
+              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">
+                Stay
+              </span>
+            </h1>
+            <p className="text-xl md:text-2xl text-gray-200 max-w-2xl mx-auto">
+              Discover amazing hotels, apartments, and unique accommodations around the world
+            </p>
+          </motion.div>
+          
           <Suspense fallback={<SearchBarSkeleton />}>
             <HeroSection />
           </Suspense>
@@ -27,57 +54,100 @@ export default function HomePage() {
       {/* Trust Indicators */}
       <TrustIndicators />
 
-      {/* Featured Properties */}
-      <section className="py-16 bg-gray-50">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold mb-8">Featured Properties</h2>
-          <FeaturedProperties />
-        </div>
-      </section>
-
       {/* Popular Destinations */}
-      <section className="py-16">
+      <section className="py-20 bg-gradient-to-b from-white to-gray-50">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold mb-8">Popular Destinations</h2>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            viewport={{ once: true }}
+            className="text-center mb-12"
+          >
+            <h2 className="text-4xl font-bold mb-4">Popular Destinations</h2>
+            <p className="text-gray-600 text-lg">Explore trending cities around the world</p>
+          </motion.div>
           <PopularDestinations />
         </div>
       </section>
 
-      {/* Why Choose Us */}
-      <section className="py-16 bg-gray-50">
+      {/* Featured Properties */}
+      <section className="py-20 bg-white">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold mb-12 text-center">Why Choose StayHub</h2>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            viewport={{ once: true }}
+            className="text-center mb-12"
+          >
+            <h2 className="text-4xl font-bold mb-4">Featured Properties</h2>
+            <p className="text-gray-600 text-lg">Hand-picked selections for your next adventure</p>
+          </motion.div>
+          <FeaturedProperties />
+        </div>
+      </section>
+
+      {/* Testimonials */}
+      <Testimonials />
+
+      {/* Why Choose Us */}
+      <section className="py-20 bg-gray-50">
+        <div className="container mx-auto px-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            viewport={{ once: true }}
+            className="text-center mb-12"
+          >
+            <h2 className="text-4xl font-bold mb-4">Why Choose StayHub</h2>
+            <p className="text-gray-600 text-lg">We make booking your perfect stay simple and secure</p>
+          </motion.div>
+          
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold mb-2">24/7 Support</h3>
-              <p className="text-gray-600">Round-the-clock customer service in multiple languages</p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Secure Booking</h3>
-              <p className="text-gray-600">Your payments and personal data are always protected</p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Best Price Guarantee</h3>
-              <p className="text-gray-600">Find a lower price? We'll match it and give you 10% off</p>
-            </div>
+            {features.map((feature, index) => (
+              <motion.div
+                key={feature.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
+                viewport={{ once: true }}
+                className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow"
+              >
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center mb-6">
+                  <feature.icon className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-xl font-bold mb-3">{feature.title}</h3>
+                <p className="text-gray-600 leading-relaxed">{feature.description}</p>
+              </motion.div>
+            ))}
           </div>
         </div>
       </section>
+
+      {/* Newsletter */}
+      <Newsletter />
     </div>
   )
 }
+
+import { Clock, Shield, ThumbsUp } from 'lucide-react'
+
+const features = [
+  {
+    icon: Clock,
+    title: '24/7 Support',
+    description: 'Round-the-clock customer service in multiple languages to assist you anytime, anywhere',
+  },
+  {
+    icon: Shield,
+    title: 'Secure Booking',
+    description: 'Your payments and personal data are always protected with bank-level encryption',
+  },
+  {
+    icon: ThumbsUp,
+    title: 'Best Price Guarantee',
+    description: 'Find a lower price? We\'ll match it and give you an extra 10% off your booking',
+  },
+]
