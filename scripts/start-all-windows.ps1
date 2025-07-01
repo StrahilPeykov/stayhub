@@ -292,7 +292,7 @@ function Start-Infrastructure {
             @{ Port = 6379; Name = "Redis" },
             @{ Port = 9200; Name = "Elasticsearch" },
             @{ Port = 9092; Name = "Kafka" },
-            @{ Port = 3316; Name = "MySQL Reporting" }  # Changed from 3306 to 3316
+            @{ Port = 3316; Name = "MySQL Reporting" }
         )
         
         # MySQL Analytics is optional
