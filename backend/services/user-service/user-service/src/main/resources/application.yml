@@ -2,26 +2,30 @@
   application:
     name: user-service
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/stayhub_users}
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/railway}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
   jpa:
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-  data:
-    redis:
-      url: ${REDIS_URL:redis://localhost:6379}
+        default_schema: users
+    show-sql: false
 
 server:
   port: ${PORT:8084}
+  tomcat:
+    max-threads: 50
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info
 
 logging:
   level:

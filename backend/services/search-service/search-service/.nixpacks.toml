@@ -1,0 +1,10 @@
+[providers.java]
+version = "17"
+
+[phases.build]
+cmds = [
+    "mvn clean package -DskipTests -Dmaven.test.skip=true -T 1C --batch-mode --no-transfer-progress"
+]
+
+[phases.start]
+cmd = "java -Xmx400m -Xms200m -XX:+UseG1GC -XX:MaxRAMPercentage=75 -jar target/*.jar"
