@@ -1,0 +1,42 @@
+# Exclude other services to reduce build context
+services/booking-service
+services/search-service  
+services/user-service
+services/analytics-engine
+
+# Maven
+target/
+.mvn/wrapper/maven-wrapper.jar
+*.jar.original
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+HELP.md
+
+# Test files
+src/test/
+
+# Database files
+*.db
+*.sqlite
+
+# Other
+node_modules/
