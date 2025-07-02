@@ -13,21 +13,6 @@ const nextConfig: NextConfig = {
         hostname: 'source.unsplash.com',
         pathname: '/**',
       },
-      {
-        protocol: 'https',
-        hostname: 'picsum.photos',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'res.cloudinary.com',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'stayhub.com',
-        pathname: '/**',
-      },
     ],
     formats: ['image/avif', 'image/webp'],
   },

@@ -1,0 +1,23 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "rewrites": [
+    {
+      "source": "/api/properties/:path*",
+      "destination": "https://[property-service-domain].railway.app/api/properties/:path*"
+    },
+    {
+      "source": "/api/bookings/:path*", 
+      "destination": "https://[booking-service-domain].railway.app/api/v1/bookings/:path*"
+    },
+    {
+      "source": "/api/search/:path*",
+      "destination": "https://[search-service-domain].railway.app/api/search/:path*"
+    },
+    {
+      "source": "/api/users/:path*",
+      "destination": "https://[user-service-domain].railway.app/api/users/:path*"
+    }
+  ]
+}
