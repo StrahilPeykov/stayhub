@@ -55,13 +55,15 @@ export function PaymentForm({ paymentData, onChange, totalAmount, currency }: Pa
   const handleInputChange = (field: string, value: string) => {
     if (field.includes('.')) {
       const [parent, child] = field.split('.')
-      onChange({
-        ...paymentData,
-        [parent]: {
-          ...paymentData[parent as keyof typeof paymentData],
-          [child]: value,
-        },
-      })
+      if (parent === 'billingAddress') {
+        onChange({
+          ...paymentData,
+          billingAddress: {
+            ...paymentData.billingAddress,
+            [child]: value,
+          },
+        })
+      }
     } else {
       onChange({
         ...paymentData,
