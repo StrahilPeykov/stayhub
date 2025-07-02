@@ -1,5 +1,6 @@
 'use client'
 
+import { use } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { propertyService } from '@/services/propertyService'
@@ -7,21 +8,22 @@ import { PropertyDetails } from '@/components/booking/PropertyDetails'
 import { Button } from '@/components/ui/button'
 import { useAnalytics } from '@/lib/hooks/useAnalytics'
 
-export default function PropertyPage({ params }: { params: { id: string } }) {
+export default function PropertyPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params)
   const router = useRouter()
   const { track } = useAnalytics()
   
   const { data: property, isLoading, error } = useQuery({
-    queryKey: ['property', params.id],
-    queryFn: () => propertyService.getPropertyById(params.id),
+    queryKey: ['property', resolvedParams.id],
+    queryFn: () => propertyService.getPropertyById(resolvedParams.id),
   })
 
   const handleBookNow = () => {
     track('property_book_now_clicked', {
-      property_id: params.id,
+      property_id: resolvedParams.id,
       property_name: property?.name,
     })
-    router.push(`/booking/${params.id}`)
+    router.push(`/booking/${resolvedParams.id}`)
   }
 
   if (isLoading) {

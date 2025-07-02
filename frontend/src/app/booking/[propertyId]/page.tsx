@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { format } from 'date-fns'
@@ -25,7 +25,8 @@ const steps = [
   { id: 'confirmation', label: 'Confirmation', icon: CheckCircle },
 ]
 
-export default function BookingPage({ params }: { params: { propertyId: string } }) {
+export default function BookingPage({ params }: { params: Promise<{ propertyId: string }> }) {
+  const resolvedParams = use(params)
   const router = useRouter()
   const { data: session } = useSession()
   const { toast } = useToast()
@@ -58,22 +59,22 @@ export default function BookingPage({ params }: { params: { propertyId: string }
   
   // Fetch property details
   const { data: property, isLoading: propertyLoading } = useQuery({
-    queryKey: ['property', params.propertyId],
-    queryFn: () => propertyService.getPropertyById(params.propertyId),
+    queryKey: ['property', resolvedParams.propertyId],
+    queryFn: () => propertyService.getPropertyById(resolvedParams.propertyId),
   })
   
   // Fetch room types
   const { data: roomTypes, isLoading: roomTypesLoading } = useQuery({
-    queryKey: ['roomTypes', params.propertyId],
-    queryFn: () => bookingService.getRoomTypes(params.propertyId),
-    enabled: !!params.propertyId,
+    queryKey: ['roomTypes', resolvedParams.propertyId],
+    queryFn: () => bookingService.getRoomTypes(resolvedParams.propertyId),
+    enabled: !!resolvedParams.propertyId,
   })
   
   // Check availability
   const { data: availability } = useQuery({
-    queryKey: ['availability', params.propertyId, bookingData.roomTypeId, bookingData.checkIn, bookingData.checkOut],
+    queryKey: ['availability', resolvedParams.propertyId, bookingData.roomTypeId, bookingData.checkIn, bookingData.checkOut],
     queryFn: () => bookingService.checkAvailability({
-      propertyId: params.propertyId,
+      propertyId: resolvedParams.propertyId,
       roomTypeId: bookingData.roomTypeId,
       checkIn: bookingData.checkIn,
       checkOut: bookingData.checkOut,
@@ -92,7 +93,7 @@ export default function BookingPage({ params }: { params: { propertyId: string }
       
       // In a real app, you'd process payment first
       const booking = await bookingService.createBooking({
-        propertyId: params.propertyId,
+        propertyId: resolvedParams.propertyId,
         userId: session.user.id,
         roomTypeId: bookingData.roomTypeId,
         checkIn: bookingData.checkIn,
@@ -100,7 +101,6 @@ export default function BookingPage({ params }: { params: { propertyId: string }
         numberOfRooms: bookingData.numberOfRooms,
         numberOfGuests: bookingData.numberOfGuests,
         specialRequests: bookingData.specialRequests,
-        idempotencyKey,
       })
       
       return booking
@@ -108,7 +108,7 @@ export default function BookingPage({ params }: { params: { propertyId: string }
     onSuccess: (booking) => {
       track('booking_completed', {
         booking_id: booking.id,
-        property_id: params.propertyId,
+        property_id: resolvedParams.propertyId,
         total_amount: booking.totalAmount,
         check_in: booking.checkIn,
         check_out: booking.checkOut,
@@ -123,7 +123,7 @@ export default function BookingPage({ params }: { params: { propertyId: string }
     },
     onError: (error: any) => {
       track('booking_failed', {
-        property_id: params.propertyId,
+        property_id: resolvedParams.propertyId,
         error: error.message,
         step: currentStep,
       })
@@ -149,20 +149,20 @@ export default function BookingPage({ params }: { params: { propertyId: string }
       }
       
       if (!session) {
-        router.push(`/auth/login?redirect=/booking/${params.propertyId}`)
+        router.push(`/auth/login?redirect=/booking/${resolvedParams.propertyId}`)
         return
       }
       
       track('booking_step_completed', {
         step: 'details',
-        property_id: params.propertyId,
+        property_id: resolvedParams.propertyId,
       })
       
       setCurrentStep(1)
     } else if (currentStep === 1) {
       // Process payment and create booking
       track('payment_initiated', {
-        property_id: params.propertyId,
+        property_id: resolvedParams.propertyId,
         amount: availability?.totalPrice,
       })
       
