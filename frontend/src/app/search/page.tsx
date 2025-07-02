@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Map, List, Filter, X, ChevronDown, Star, Wifi, Car, Coffee, Dumbbell } from 'lucide-react'
 import { propertyService } from '@/services/propertyService'
@@ -41,7 +41,7 @@ const sortOptions = [
   { id: 'distance', label: 'Distance to Center' },
 ]
 
-export default function SearchPage() {
+function SearchContent() {
   const searchParams = useSearchParams()
   const location = searchParams.get('location') || ''
   const checkIn = searchParams.get('checkIn') || ''
@@ -453,4 +453,27 @@ function generateMockProperties(count: number) {
       ],
     }
   })
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-white shadow-sm border-b">
+          <div className="container mx-auto px-4 py-4">
+            <Skeleton className="h-16 w-full rounded-lg" />
+          </div>
+        </div>
+        <div className="container mx-auto px-4 py-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
+              <PropertyCardSkeleton key={i} />
+            ))}
+          </div>
+        </div>
+      </div>
+    }>
+      <SearchContent />
+    </Suspense>
+  )
 }

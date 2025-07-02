@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, Suspense } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useAnalytics } from '@/lib/hooks/useAnalytics'
 
-export function Analytics() {
+function AnalyticsImpl() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const { track } = useAnalytics()
@@ -22,4 +22,12 @@ export function Analytics() {
   }, [pathname, searchParams, track])
 
   return null
+}
+
+export function Analytics() {
+  return (
+    <Suspense fallback={null}>
+      <AnalyticsImpl />
+    </Suspense>
+  )
 }
