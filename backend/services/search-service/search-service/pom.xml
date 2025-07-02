@@ -11,7 +11,7 @@
 	<groupId>com.stayhub</groupId>
 	<artifactId>search-service</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<n>search-service</n>
+	<name>search-service</name>
 	<description>Search service for StayHub platform</description>
 	
 	<properties>

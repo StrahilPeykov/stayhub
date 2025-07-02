@@ -13,7 +13,7 @@
     <groupId>com.stayhub</groupId>
     <artifactId>property-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <n>property-service</n>
+    <name>property-service</name>
     <description>Property service for StayHub platform</description>
     
     <properties>
