@@ -1,153 +1,35 @@
 ﻿spring:
   application:
     name: booking-service
-  
-  # Primary Database - PostgreSQL
   datasource:
-    url: jdbc:postgresql://localhost:5432/stayhub_bookings
-    username: postgres
-    password: ${DB_PASSWORD:1234}
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/stayhub_bookings}
     driver-class-name: org.postgresql.Driver
-    hikari:
-      pool-name: BookingServicePool
-      maximum-pool-size: 10
-      minimum-idle: 2
-      connection-timeout: 20000
-      idle-timeout: 300000
-      max-lifetime: 600000
-  
-  # JPA Configuration
   jpa:
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-        jdbc:
-          batch_size: 25
-        order_inserts: true
-        order_updates: true
-    show-sql: false
-    open-in-view: false
-  
-  # Redis Configuration
+  kafka:
+    bootstrap-servers: ${KAFKA_URL:localhost:9092}
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: 6379
-      password: ${REDIS_PASSWORD:}
-      timeout: 2000ms
-      lettuce:
-        pool:
-          max-active: 8
-          max-idle: 4
-          min-idle: 1
-  
-  # Cache Configuration
-  cache:
-    type: redis
-    redis:
-      time-to-live: 3600000 # 1 hour
-      cache-null-values: false
-      key-prefix: "booking:"
-      use-key-prefix: true
-  
-  # Kafka Configuration
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-      acks: all
-      retries: 3
-    consumer:
-      group-id: booking-service
-      auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: "com.stayhub.*"
+      url: ${REDIS_URL:redis://localhost:6379}
 
-# Server Configuration
 server:
-  port: 8082
-  error:
-    include-message: always
-    include-binding-errors: always
+  port: ${PORT:8082}
 
-# Actuator Configuration
 management:
   endpoints:
     web:
       exposure:
         include: health,info,metrics,prometheus
-  endpoint:
-    health:
-      show-details: always
-      show-components: always
-      probes:
-        enabled: true
-  metrics:
-    distribution:
-      percentiles-histogram:
-        http.server.requests: true
-    tags:
-      application: ${spring.application.name}
 
-# Resilience4j Configuration (simplified)
-resilience4j:
-  circuitbreaker:
-    configs:
-      default:
-        registerHealthIndicator: true
-        slidingWindowSize: 10
-        minimumNumberOfCalls: 5
-        permittedNumberOfCallsInHalfOpenState: 3
-        automaticTransitionFromOpenToHalfOpenEnabled: true
-        waitDurationInOpenState: 5s
-        failureRateThreshold: 50
-        eventConsumerBufferSize: 10
-    instances:
-      property-service:
-        baseConfig: default
-  retry:
-    configs:
-      default:
-        maxAttempts: 3
-        waitDuration: 500ms
-    instances:
-      property-service:
-        baseConfig: default
-
-# Logging Configuration
 logging:
   level:
-    com.stayhub.booking_service: DEBUG
-    org.springframework.web: INFO
-    org.hibernate.SQL: DEBUG
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %highlight(%-5level) - [%thread] %logger{36} - %msg%n"
+    com.stayhub: INFO
 
-# External Service Configuration
+# External service URLs
 services:
   property:
     url: ${PROPERTY_SERVICE_URL:http://localhost:8081}
-
-# API Documentation
-springdoc:
-  api-docs:
-    path: /api-docs
-    enabled: true
-  swagger-ui:
-    path: /swagger-ui.html
-    enabled: true
-
-# Application specific properties
-app:
-  booking:
-    max-days-advance: 365
-    max-booking-duration: 30
-    cancellation:
-      full-refund-days: 7
-      partial-refund-days: 3

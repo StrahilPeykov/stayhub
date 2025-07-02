@@ -1,0 +1,8 @@
+{
+  "$schema": "https://railway.app/railway.json",
+  "deploy": {
+    "restartPolicyType": "ON_FAILURE",
+    "sleepApplication": false,
+    "cronSchedule": null
+  }
+}

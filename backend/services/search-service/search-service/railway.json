@@ -1,0 +1,11 @@
+{
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "cd backend && mvn clean package -DskipTests -pl services/search-service/search-service -am",
+    "watchPatterns": ["backend/services/search-service/**"]
+  },
+  "deploy": {
+    "startCommand": "cd backend/services/search-service/search-service && java -jar target/*.jar",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}

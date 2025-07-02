@@ -1,99 +1,27 @@
 ﻿spring:
   application:
     name: search-service
-  
-  # Database Configuration
   datasource:
-    url: jdbc:postgresql://localhost:5432/stayhub_search
-    username: postgres
-    password: 1234
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/stayhub_search}
     driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 10
-      minimum-idle: 2
-      connection-timeout: 20000
-      idle-timeout: 300000
-      max-lifetime: 600000
-      leak-detection-threshold: 60000
-  
-  # JPA Configuration  
   jpa:
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-        show_sql: false
-        # Add connection validation
-        connection:
-          provider_disables_autocommit: true
-        jdbc:
-          time_zone: UTC
-    show-sql: false
-    open-in-view: false
-  
-  # Elasticsearch Configuration (no auth since security is disabled)
-  elasticsearch:
-    uris: http://localhost:9200
-    connection-timeout: 10s
-    socket-timeout: 60s
-  
-  # Kafka Configuration
   kafka:
-    bootstrap-servers: localhost:9092
-    consumer:
-      group-id: search-service
-      auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: "*"
+    bootstrap-servers: ${KAFKA_URL:localhost:9092}
 
-# Server Configuration
 server:
-  port: 8083
-  error:
-    include-message: always
+  port: ${PORT:8083}
 
-# Actuator Configuration
 management:
   endpoints:
     web:
       exposure:
         include: health,info,metrics,prometheus
-  endpoint:
-    health:
-      show-details: always
-      probes:
-        enabled: true
-  health:
-    db:
-      enabled: true
-    elasticsearch:
-      enabled: false  # Disable ES health check if causing issues
 
-# Logging Configuration
 logging:
   level:
-    com.stayhub.search_service: DEBUG
-    org.springframework.data.elasticsearch: DEBUG
-    org.elasticsearch: INFO
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-    com.zaxxer.hikari: DEBUG
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
-
----
-# Docker Profile
-spring:
-  config:
-    activate:
-      on-profile: docker
-  datasource:
-    url: jdbc:postgresql://postgres:5432/stayhub_search
-  elasticsearch:
-    uris: http://elasticsearch:9200
-  kafka:
-    bootstrap-servers: kafka:29092
+    com.stayhub: INFO

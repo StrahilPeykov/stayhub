@@ -1,0 +1,11 @@
+{
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "cd backend && mvn clean package -DskipTests -pl services/user-service/user-service -am",
+    "watchPatterns": ["backend/services/user-service/**"]
+  },
+  "deploy": {
+    "startCommand": "cd backend/services/user-service/user-service && java -jar target/*.jar",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}

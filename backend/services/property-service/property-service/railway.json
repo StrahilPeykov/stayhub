@@ -1,0 +1,11 @@
+{
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "cd backend && mvn clean package -DskipTests -pl services/property-service/property-service -am",
+    "watchPatterns": ["backend/services/property-service/**"]
+  },
+  "deploy": {
+    "startCommand": "cd backend/services/property-service/property-service && java -jar target/*.jar",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}
