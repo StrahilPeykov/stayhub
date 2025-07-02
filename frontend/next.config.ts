@@ -16,12 +16,11 @@ const nextConfig: NextConfig = {
     ],
     formats: ['image/avif', 'image/webp'],
   },
-  experimental: {
-    optimizeCss: true,
-  },
   eslint: {
     ignoreDuringBuilds: true, // disables linting errors during `next build`
   },
+  // Removed experimental.optimizeCss to fix critters dependency issue
+  // This experimental feature causes build failures in Next.js 15
 };
 
 export default nextConfig;
