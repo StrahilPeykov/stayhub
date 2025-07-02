@@ -3,5 +3,5 @@
 *.iml
 .vscode/
 *.log
-#.env
+.env
 .DS_Store
