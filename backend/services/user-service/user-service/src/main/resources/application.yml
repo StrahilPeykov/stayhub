@@ -16,7 +16,7 @@
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        default_schema: users
+        # Remove schema specification - use default schema
     show-sql: false
 
 server:
@@ -33,14 +33,20 @@ management:
       base-path: /actuator
   endpoint:
     health:
-      show-details: always
+      show-details: when-authorized
       probes:
         enabled: true
-  server:
-    port: ${PORT:8084}  # Same port as main app
+  # Remove separate management server port - use main app port
+  health:
+    # Make health check less dependent on database
+    db:
+      enabled: false
+    defaults:
+      enabled: true
 
 logging:
   level:
     com.stayhub: INFO
     org.springframework.boot: INFO
+    org.hibernate.SQL: WARN
     root: WARN

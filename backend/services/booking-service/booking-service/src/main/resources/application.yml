@@ -16,7 +16,7 @@
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        default_schema: booking
+        # Remove schema specification - use default schema
         jdbc:
           batch_size: 20
         order_inserts: true
@@ -60,7 +60,13 @@ management:
         include: health,info,metrics
   endpoint:
     health:
-      show-details: when_authorized
+      show-details: when-authorized
+  health:
+    # Make health check less dependent on database during startup
+    db:
+      enabled: false
+    defaults:
+      enabled: true
   metrics:
     export:
       prometheus:
@@ -100,5 +106,5 @@ logging:
 # External service URLs
 services:
   property:
-    url: ${PROPERTY_SERVICE_URL:http://property-production.up.railway.app}
+    url: ${PROPERTY_SERVICE_URL:http://property-service:8081}
     timeout: 5000

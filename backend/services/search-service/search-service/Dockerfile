@@ -17,8 +17,30 @@ WORKDIR /app
 # Install curl for health checks
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
+# Create non-root user for security
+RUN groupadd -r spring && useradd -r -g spring spring
+
 COPY --from=builder /app/target/*.jar app.jar
 
-EXPOSE 8083
+# Change ownership to spring user
+RUN chown spring:spring app.jar
 
-CMD ["java", "-Xmx400m", "-Xms200m", "-XX:+UseG1GC", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]
+USER spring
+
+# Expose the port that Railway will assign
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:${PORT:-8080}/actuator/health || exit 1
+
+# Use exec form to ensure proper signal handling
+CMD ["java", \
+     "-Djava.security.egd=file:/dev/./urandom", \
+     "-Dserver.port=${PORT:-8080}", \
+     "-Xmx400m", \
+     "-Xms200m", \
+     "-XX:+UseG1GC", \
+     "-XX:MaxRAMPercentage=75", \
+     "-jar", \
+     "app.jar"]
