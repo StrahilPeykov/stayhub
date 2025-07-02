@@ -1,4 +1,4 @@
-package com.stayhub.service.config;
+package com.stayhub.booking_service.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
