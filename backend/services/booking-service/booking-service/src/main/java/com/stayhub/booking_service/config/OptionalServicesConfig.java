@@ -2,7 +2,6 @@ package com.stayhub.booking_service.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.support.NoOpCacheManager;
 import org.springframework.context.annotation.Bean;
@@ -10,8 +9,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
-import org.springframework.util.concurrent.ListenableFuture;
-import org.springframework.util.concurrent.SettableListenableFuture;
+
+import java.util.concurrent.CompletableFuture;
 
 @Configuration
 @Slf4j
@@ -26,19 +25,15 @@ public class OptionalServicesConfig {
         public KafkaTemplate<String, Object> noOpKafkaTemplate() {
             return new KafkaTemplate<String, Object>(null) {
                 @Override
-                public ListenableFuture<SendResult<String, Object>> send(String topic, Object data) {
+                public CompletableFuture<SendResult<String, Object>> send(String topic, Object data) {
                     log.info("KAFKA DISABLED - Would send to topic {}: {}", topic, data);
-                    SettableListenableFuture<SendResult<String, Object>> future = new SettableListenableFuture<>();
-                    future.set(null);
-                    return future;
+                    return CompletableFuture.completedFuture(null);
                 }
                 
                 @Override
-                public ListenableFuture<SendResult<String, Object>> send(String topic, String key, Object data) {
+                public CompletableFuture<SendResult<String, Object>> send(String topic, String key, Object data) {
                     log.info("KAFKA DISABLED - Would send to topic {} with key {}: {}", topic, key, data);
-                    SettableListenableFuture<SendResult<String, Object>> future = new SettableListenableFuture<>();
-                    future.set(null);
-                    return future;
+                    return CompletableFuture.completedFuture(null);
                 }
             };
         }
