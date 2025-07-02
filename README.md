@@ -1,6 +1,6 @@
 ﻿# StayHub - Mini Booking Platform
 
-A microservices-based hotel booking platform built with Spring Boot, demonstrating scalable backend architecture.
+A microservices-based hotel booking platform built with Spring Boot, demonstrating scalable backend architecture. 
 
 ## Services
 - Property Service: Manages hotel/property data
