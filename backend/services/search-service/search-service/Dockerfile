@@ -8,7 +8,7 @@ RUN mvn dependency:go-offline -B
 
 # Copy source and build
 COPY src ./src
-RUN mvn clean package -DskipTests -T 1C --batch-mode --no-transfer-progress
+RUN mvn clean package -Dmaven.test.skip=true -T 1C --batch-mode --no-transfer-progress
 
 FROM eclipse-temurin:17-jre-jammy
 
