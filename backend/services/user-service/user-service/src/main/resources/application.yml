@@ -7,6 +7,9 @@
     hikari:
       maximum-pool-size: 5
       minimum-idle: 2
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1200000
   jpa:
     hibernate:
       ddl-auto: update
@@ -15,18 +18,50 @@
         dialect: org.hibernate.dialect.PostgreSQLDialect
         default_schema: users
     show-sql: false
+  
+  # Optional services - will be ignored if not available
+  kafka:
+    bootstrap-servers: ${KAFKA_URL:}
+    producer:
+      acks: 1
+      retries: 3
+    consumer:
+      group-id: user-service
+      auto-offset-reset: earliest
+  
+  data:
+    redis:
+      url: ${REDIS_URL:}
+      timeout: 2000ms
+      connect-timeout: 2000ms
+  
+  cache:
+    type: ${CACHE_TYPE:simple}
 
 server:
   port: ${PORT:8084}
   tomcat:
     max-threads: 50
+    min-spare-threads: 10
+    connection-timeout: 20000
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+  metrics:
+    export:
+      prometheus:
+        enabled: false
 
 logging:
   level:
     com.stayhub: INFO
+    org.springframework.kafka: WARN
+    org.springframework.data.redis: WARN
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
