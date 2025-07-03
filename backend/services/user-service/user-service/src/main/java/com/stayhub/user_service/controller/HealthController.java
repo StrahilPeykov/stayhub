@@ -1,51 +1,37 @@
 package com.stayhub.user_service.controller;
 
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.HashMap;
+import org.springframework.http.ResponseEntity;
 import java.util.Map;
 
 @RestController
 public class HealthController {
     
+    // Simple health check for Railway
     @GetMapping("/actuator/health")
-    public ResponseEntity<Map<String, Object>> health() {
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "UP");
-        response.put("timestamp", System.currentTimeMillis());
-        response.put("service", "user-service"); // Change for each service
-        
-        // Simple health check without database dependency
-        try {
-            // Basic application health check
-            Runtime runtime = Runtime.getRuntime();
-            long memory = runtime.totalMemory() - runtime.freeMemory();
-            
-            response.put("components", Map.of(
-                "diskSpace", Map.of("status", "UP"),
-                "ping", Map.of("status", "UP"),
-                "memory", Map.of(
-                    "status", "UP",
-                    "used", memory,
-                    "total", runtime.totalMemory()
-                )
-            ));
-            
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            response.put("status", "DOWN");
-            response.put("error", e.getMessage());
-            return ResponseEntity.status(503).body(response);
-        }
+    public ResponseEntity<Map<String, String>> actuatorHealth() {
+        return ResponseEntity.ok(Map.of(
+            "status", "UP",
+            "service", "user-service",
+            "port", System.getProperty("server.port", "unknown"),
+            "timestamp", String.valueOf(System.currentTimeMillis())
+        ));
     }
     
+    // endpoint
     @GetMapping("/health")
-    public ResponseEntity<Map<String, String>> simpleHealth() {
-        Map<String, String> response = new HashMap<>();
-        response.put("status", "UP");
-        response.put("service", "user-service"); // Change for each service
-        return ResponseEntity.ok(response);
+    public String health() {
+        return "OK";
+    }
+    
+    // Root endpoint to test basic connectivity
+    @GetMapping("/")
+    public ResponseEntity<Map<String, String>> root() {
+        return ResponseEntity.ok(Map.of(
+            "service", "user-service",
+            "status", "running",
+            "port", System.getProperty("server.port", "unknown")
+        ));
     }
 }

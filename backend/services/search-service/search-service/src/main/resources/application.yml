@@ -1,41 +1,11 @@
 ﻿spring:
   application:
     name: search-service
-  datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/railway}
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 5
-      minimum-idle: 2
-  jpa:
-    hibernate:
-      ddl-auto: update
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        # Remove schema specification - use default schema
-    show-sql: false
 
 server:
   port: ${PORT:8083}
-  tomcat:
-    max-threads: 50
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info
-  endpoint:
-    health:
-      show-details: when-authorized
-  health:
-    # Make health check less dependent on database
-    db:
-      enabled: false
-    defaults:
-      enabled: true
 
 logging:
   level:
-    com.stayhub: INFO
+    root: INFO
+    com.stayhub: DEBUG

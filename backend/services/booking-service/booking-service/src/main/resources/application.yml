@@ -1,110 +1,11 @@
 ﻿spring:
   application:
     name: booking-service
-  datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/railway}
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 5
-      minimum-idle: 2
-      connection-timeout: 20000
-      idle-timeout: 300000
-      max-lifetime: 1200000
-  jpa:
-    hibernate:
-      ddl-auto: update
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        # Remove schema specification - use default schema
-        jdbc:
-          batch_size: 20
-        order_inserts: true
-        order_updates: true
-    show-sql: false
-  
-  # Optional services - will be ignored if not available
-  kafka:
-    bootstrap-servers: ${KAFKA_URL:}
-    producer:
-      acks: 1
-      retries: 3
-      batch-size: 16384
-      linger-ms: 5
-    consumer:
-      group-id: booking-service
-      auto-offset-reset: earliest
-  
-  data:
-    redis:
-      url: ${REDIS_URL:}
-      timeout: 2000ms
-      connect-timeout: 2000ms
-  
-  # Cache configuration
-  cache:
-    type: ${CACHE_TYPE:simple}
 
 server:
   port: ${PORT:8082}
-  tomcat:
-    max-threads: 50
-    min-spare-threads: 10
-    connection-timeout: 20000
 
-# Management endpoints
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics
-  endpoint:
-    health:
-      show-details: when-authorized
-  health:
-    # Make health check less dependent on database during startup
-    db:
-      enabled: false
-    defaults:
-      enabled: true
-  metrics:
-    export:
-      prometheus:
-        enabled: false
-
-# Resilience4j Configuration
-resilience4j:
-  circuitbreaker:
-    instances:
-      property-service:
-        failure-rate-threshold: 50
-        minimum-number-of-calls: 5
-        automatic-transition-from-open-to-half-open-enabled: true
-        wait-duration-in-open-state: 5s
-        permitted-number-of-calls-in-half-open-state: 3
-        sliding-window-size: 10
-        sliding-window-type: count_based
-  retry:
-    instances:
-      property-service:
-        max-attempts: 3
-        wait-duration: 1000ms
-        retry-exceptions:
-          - java.io.IOException
-          - java.util.concurrent.TimeoutException
-          - org.springframework.web.client.ResourceAccessException
-
-# Logging
 logging:
   level:
-    com.stayhub: INFO
-    org.springframework.kafka: WARN
-    org.springframework.data.redis: WARN
-    org.hibernate.SQL: WARN
-    org.hibernate.type.descriptor.sql.BasicBinder: WARN
-
-# External service URLs
-services:
-  property:
-    url: ${PROPERTY_SERVICE_URL:http://property-service:8081}
-    timeout: 5000
+    root: INFO
+    com.stayhub: DEBUG
