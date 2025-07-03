@@ -3,11 +3,10 @@ spring:
   application:
     name: property-service
   
-  # Database configuration for Railway
   datasource:
-    url: ${SPRING_DATASOURCE_URL:${DATABASE_URL:jdbc:postgresql://localhost:5432/stayhub_properties}}
-    username: ${SPRING_DATASOURCE_USERNAME:${PGUSER:postgres}}
-    password: ${SPRING_DATASOURCE_PASSWORD:${PGPASSWORD:1234}}
+    url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:stayhub_properties}
+    username: ${PGUSER:postgres}
+    password: ${PGPASSWORD:1234}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 5
@@ -55,10 +54,3 @@ logging:
     org.springframework.boot: INFO
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
-
----
-# Railway profile (already active)
-spring:
-  config:
-    activate:
-      on-profile: railway

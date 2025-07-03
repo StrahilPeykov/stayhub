@@ -3,11 +3,10 @@ spring:
   application:
     name: booking-service
   
-  # Database configuration for Railway
   datasource:
-    url: ${SPRING_DATASOURCE_URL:${DATABASE_URL:jdbc:postgresql://localhost:5432/stayhub_bookings}}
-    username: ${SPRING_DATASOURCE_USERNAME:${PGUSER:postgres}}
-    password: ${SPRING_DATASOURCE_PASSWORD:${PGPASSWORD:1234}}
+    url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:stayhub_bookings}
+    username: ${PGUSER:postgres}
+    password: ${PGPASSWORD:1234}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 5
@@ -15,7 +14,6 @@ spring:
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
-      # Add connection test query
       connection-test-query: SELECT 1
       validation-timeout: 5000
   
@@ -63,14 +61,7 @@ logging:
     root: INFO
     com.stayhub: DEBUG
     org.springframework.boot: INFO
-    com.zaxxer.hikari: DEBUG
-    org.hibernate.SQL: DEBUG
+    com.zaxxer.hikari: INFO
+    org.hibernate.SQL: INFO
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
-
----
-# Railway profile
-spring:
-  config:
-    activate:
-      on-profile: railway
