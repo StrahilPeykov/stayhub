@@ -13,9 +13,9 @@ FROM eclipse-temurin:17-jre-jammy
 
 WORKDIR /app
 
-# Install curl for health checks
+# Install curl and debugging tools
 RUN apt-get update && \
-    apt-get install -y curl && \
+    apt-get install -y curl netcat-openbsd htop && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy the JAR file
@@ -32,28 +32,33 @@ USER appuser
 # Set proper port
 EXPOSE ${PORT}
 
-# Start the application with detailed logging
-CMD echo "=== Starting StayHub Service ===" && \
+# Enhanced startup with maximum debugging
+CMD echo "=== ENHANCED DEBUGGING STARTUP ===" && \
+    echo "Timestamp: $(date)" && \
     echo "PORT: ${PORT}" && \
     echo "DATABASE_URL: ${DATABASE_URL}" && \
     echo "JAVA_OPTS: ${JAVA_OPTS}" && \
     echo "SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}" && \
-    echo "Max Memory: $(echo ${JAVA_OPTS} | grep -o 'Xmx[0-9]*[mg]')" && \
-    echo "Available Memory: $(free -h | grep Mem)" && \
-    echo "Starting application..." && \
+    echo "Available memory: $(free -h)" && \
+    echo "Disk space: $(df -h /)" && \
+    echo "CPU info: $(nproc) cores" && \
+    echo "Environment variables:" && \
+    env | grep -E "(PORT|DATABASE|SPRING|JAVA)" | sort && \
+    echo "=== STARTING JAVA APPLICATION ===" && \
+    echo "Java version: $(java -version 2>&1)" && \
+    echo "JVM Args: ${JAVA_OPTS}" && \
     exec java \
-         -Dserver.port=${PORT:-8080} \
+         -Dserver.port=${PORT:-8084} \
          -Djava.security.egd=file:/dev/./urandom \
          -Dspring.profiles.active=${SPRING_PROFILES_ACTIVE:-default} \
          -Dlogging.level.org.springframework.boot.web.embedded.tomcat=INFO \
          -Dlogging.level.org.springframework.boot=INFO \
-         -Dlogging.level.org.hibernate=WARN \
          -Dlogging.level.org.springframework.boot.actuate=DEBUG \
          -Dlogging.level.com.stayhub=DEBUG \
-         -Dserver.tomcat.accept-count=10 \
-         -Dserver.tomcat.max-connections=50 \
+         -Dserver.tomcat.accept-count=5 \
+         -Dserver.tomcat.max-connections=20 \
          -Dspring.jpa.show-sql=false \
-         -Dspring.jpa.hibernate.ddl-auto=update \
          -Dmanagement.endpoint.health.show-details=always \
-         ${JAVA_OPTS:--Xmx512m -Xms256m -XX:+UseG1GC} \
+         -XX:+UseG1GC \
+         ${JAVA_OPTS:--Xmx512m -Xms256m} \
          -jar app.jar

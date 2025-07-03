@@ -1,9 +1,9 @@
-﻿# Minimal configuration for debugging startup issues
+﻿# Absolute minimal configuration to test basic Spring Boot startup
 spring:
   application:
     name: user-service
   
-  # Disable problematic auto-configurations
+  # Disable ALL auto-configurations that could cause issues
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
@@ -11,17 +11,20 @@ spring:
       - org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
       - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
       - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.web.SpringDataWebAutoConfiguration
 
+# Minimal server configuration
 server:
   port: ${PORT:8084}
   tomcat:
-    max-threads: 20
+    max-threads: 10
     min-spare-threads: 2
     connection-timeout: 20000
-  shutdown: graceful
 
-# Minimal management configuration
+# Minimal management/actuator
 management:
   endpoints:
     web:
@@ -31,24 +34,13 @@ management:
     health:
       show-details: always
 
-# Minimal logging
+# Verbose logging to see what's happening
 logging:
   level:
     root: INFO
     com.stayhub: DEBUG
-    org.springframework.boot: INFO
-    org.springframework.web: INFO
+    org.springframework.boot: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.boot.web.embedded.tomcat: DEBUG
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
-
----
-# Railway profile - even more minimal
-spring:
-  config:
-    activate:
-      on-profile: railway
-
-logging:
-  level:
-    root: INFO
-    com.stayhub: INFO
