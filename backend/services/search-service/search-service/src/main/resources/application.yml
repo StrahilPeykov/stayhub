@@ -1,9 +1,9 @@
-﻿# Working configuration for Search Service
+﻿# Search Service Configuration for Railway
 spring:
   application:
     name: search-service
   
-  # Disable problematic auto-configurations
+  # Only exclude integrations we don't have
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
@@ -11,8 +11,6 @@ spring:
       - org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
       - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
-      - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
-      - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration
 
 server:
   port: ${PORT:8083}
@@ -32,7 +30,7 @@ management:
 logging:
   level:
     root: INFO
-    com.stayhub: DEBUG
+    com.stayhub: INFO
     org.springframework.boot: INFO
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
@@ -43,8 +41,3 @@ spring:
   config:
     activate:
       on-profile: railway
-
-logging:
-  level:
-    root: INFO
-    com.stayhub: INFO

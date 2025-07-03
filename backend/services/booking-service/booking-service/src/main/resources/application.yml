@@ -1,16 +1,42 @@
-﻿# Working configuration for Booking Service
+﻿# Booking Service Configuration for Railway
 spring:
   application:
     name: booking-service
   
-  # Disable problematic auto-configurations
+  # Enable database configurations for Railway PostgreSQL
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${PGUSER:postgres}
+    password: ${PGPASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          time_zone: UTC
+  
+  # Only exclude optional integrations we don't have
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
-      - org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
-      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+
+# External service URLs
+services:
+  property:
+    url: ${PROPERTY_SERVICE_URL:http://localhost:8081}
 
 server:
   port: ${PORT:8082}
@@ -30,19 +56,14 @@ management:
 logging:
   level:
     root: INFO
-    com.stayhub: DEBUG
+    com.stayhub: INFO
     org.springframework.boot: INFO
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
 
 ---
-# Railway profile
+# Railway profile (already active)
 spring:
   config:
     activate:
       on-profile: railway
-
-logging:
-  level:
-    root: INFO
-    com.stayhub: INFO

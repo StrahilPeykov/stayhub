@@ -1,7 +1,5 @@
 package com.stayhub.search_service.controller;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.elasticsearch.client.elc.ElasticsearchTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,26 +12,13 @@ import java.util.Map;
 @RequestMapping("/api/search")
 public class SearchController {
 
-    @Autowired(required = false)
-    private ElasticsearchTemplate elasticsearchTemplate;
-
     @GetMapping("/health")
     public ResponseEntity<Map<String, Object>> healthCheck() {
         Map<String, Object> response = new HashMap<>();
         response.put("service", "search-service");
         response.put("status", "UP");
         response.put("timestamp", System.currentTimeMillis());
-        
-        if (elasticsearchTemplate != null) {
-            try {
-                // Simple check to see if Elasticsearch is accessible
-                response.put("elasticsearch", "Connected");
-            } catch (Exception e) {
-                response.put("elasticsearch", "Error: " + e.getMessage());
-            }
-        } else {
-            response.put("elasticsearch", "Template not available");
-        }
+        response.put("message", "Search service is operational (basic implementation)");
         
         return ResponseEntity.ok(response);
     }
@@ -43,6 +28,16 @@ public class SearchController {
         Map<String, String> response = new HashMap<>();
         response.put("message", "Search service is working!");
         response.put("version", "1.0.0");
+        response.put("note", "Basic implementation - ready for Elasticsearch integration");
+        return ResponseEntity.ok(response);
+    }
+    
+    @GetMapping("/properties")
+    public ResponseEntity<Map<String, Object>> searchProperties() {
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Property search endpoint");
+        response.put("status", "available");
+        response.put("note", "Ready for search implementation");
         return ResponseEntity.ok(response);
     }
 }
