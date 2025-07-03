@@ -27,10 +27,10 @@
     </properties>
     
     <modules>
-        <module>services/property-service</module>
-        <module>services/booking-service</module>
-        <module>services/search-service</module>
-        <module>services/user-service</module>
+        <module>services/property-service/property-service</module>
+        <module>services/booking-service/booking-service</module>
+        <module>services/search-service/search-service</module>
+        <module>services/user-service/user-service</module>
     </modules>
     
     <dependencyManagement>
