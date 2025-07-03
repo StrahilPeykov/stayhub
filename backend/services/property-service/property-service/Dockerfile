@@ -30,7 +30,7 @@ CMD echo "=== Starting application ===" && \
     echo "PORT: ${PORT}" && \
     echo "Files in /app:" && ls -la /app/ && \
     echo "Starting Java application..." && \
-    java -Dserver.port=${PORT:-8084} \
+    java -Dserver.port=${PORT:-8081} \
          -Djava.security.egd=file:/dev/./urandom \
          -Xmx300m \
          -Xms100m \
