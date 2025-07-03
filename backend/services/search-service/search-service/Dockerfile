@@ -32,22 +32,28 @@ USER appuser
 # Set proper port
 EXPOSE ${PORT}
 
-# No Docker healthcheck - Railway will handle this
-# HEALTHCHECK removed to avoid conflicts with Railway's healthcheck
-
-# Start the application
+# Start the application with detailed logging
 CMD echo "=== Starting StayHub Service ===" && \
     echo "PORT: ${PORT}" && \
     echo "DATABASE_URL: ${DATABASE_URL}" && \
     echo "JAVA_OPTS: ${JAVA_OPTS}" && \
     echo "SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}" && \
+    echo "Max Memory: $(echo ${JAVA_OPTS} | grep -o 'Xmx[0-9]*[mg]')" && \
+    echo "Available Memory: $(free -h | grep Mem)" && \
     echo "Starting application..." && \
     exec java \
          -Dserver.port=${PORT:-8080} \
          -Djava.security.egd=file:/dev/./urandom \
          -Dspring.profiles.active=${SPRING_PROFILES_ACTIVE:-default} \
-         -Dspring.jpa.show-sql=false \
+         -Dlogging.level.org.springframework.boot.web.embedded.tomcat=INFO \
          -Dlogging.level.org.springframework.boot=INFO \
          -Dlogging.level.org.hibernate=WARN \
-         ${JAVA_OPTS:--Xmx350m -Xms150m -XX:+UseG1GC} \
+         -Dlogging.level.org.springframework.boot.actuate=DEBUG \
+         -Dlogging.level.com.stayhub=DEBUG \
+         -Dserver.tomcat.accept-count=10 \
+         -Dserver.tomcat.max-connections=50 \
+         -Dspring.jpa.show-sql=false \
+         -Dspring.jpa.hibernate.ddl-auto=update \
+         -Dmanagement.endpoint.health.show-details=always \
+         ${JAVA_OPTS:--Xmx512m -Xms256m -XX:+UseG1GC} \
          -jar app.jar
