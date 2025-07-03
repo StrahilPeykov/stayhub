@@ -1,129 +1,48 @@
-﻿# Default configuration
+﻿# Working configuration for Booking Service
 spring:
   application:
     name: booking-service
   
-  # Database configuration for Railway PostgreSQL
-  datasource:
-    url: ${DATABASE_URL}
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 5
-      minimum-idle: 1
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
-      initialization-fail-timeout: 60000
-      validation-timeout: 5000
-      leak-detection-threshold: 60000
-  
-  # JPA/Hibernate configuration
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: false
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
-    properties:
-      hibernate:
-        format_sql: false
-        jdbc:
-          time_zone: UTC
-        temp:
-          use_jdbc_metadata_defaults: false
-    database:
-      platform: postgresql
-  
-  # Cache configuration (using simple since Redis not available)
-  cache:
-    type: simple
-  
-  # Disable external service auto-configuration
+  # Disable problematic auto-configurations
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
 
 server:
   port: ${PORT:8082}
   tomcat:
-    max-threads: 50
-    min-spare-threads: 5
-    connection-timeout: 30000
-  shutdown: graceful
+    max-threads: 20
+    min-spare-threads: 2
 
-# Management/Actuator configuration
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,env
+        include: health,info
   endpoint:
     health:
       show-details: always
-      probes:
-        enabled: true
-  server:
-    port: ${PORT:8082}
-  health:
-    db:
-      enabled: true
-    defaults:
-      enabled: true
 
-# Service URLs (for inter-service communication)
-services:
-  property:
-    url: ${PROPERTY_SERVICE_URL:http://localhost:8081}
-
-# Logging configuration
 logging:
   level:
     root: INFO
     com.stayhub: DEBUG
-    org.springframework.web: INFO
     org.springframework.boot: INFO
-    org.hibernate.SQL: WARN
-    org.hibernate.type: WARN
-    com.zaxxer.hikari: WARN
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
 
-# Spring Boot configuration
-spring.lifecycle.timeout-per-shutdown-phase: 30s
-
 ---
-# Railway-specific configuration
+# Railway profile
 spring:
   config:
     activate:
       on-profile: railway
-  
-  # Railway-optimized database settings
-  datasource:
-    hikari:
-      maximum-pool-size: 3  # Lower for Railway's memory limits
-      minimum-idle: 1
-      connection-timeout: 20000
-      validation-timeout: 5000
-      leak-detection-threshold: 30000
-  
-  # Railway-specific JPA settings
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: false  # Reduce log noise in production
-    
-# Railway-specific logging
+
 logging:
   level:
     root: INFO
-    com.stayhub: INFO  # Less verbose in production
-    org.springframework.web: WARN
-    org.hibernate: WARN
-    com.zaxxer.hikari: WARN
-
-# Railway-specific management
-management:
-  endpoint:
-    health:
-      show-details: when-authorized  # More secure in production
+    com.stayhub: INFO

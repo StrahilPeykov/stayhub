@@ -13,9 +13,9 @@ FROM eclipse-temurin:17-jre-jammy
 
 WORKDIR /app
 
-# Install curl and debugging tools
+# Install curl for health checks
 RUN apt-get update && \
-    apt-get install -y curl netcat-openbsd htop && \
+    apt-get install -y curl && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy the JAR file
@@ -32,33 +32,20 @@ USER appuser
 # Set proper port
 EXPOSE ${PORT}
 
-# Enhanced startup with maximum debugging
-CMD echo "=== ENHANCED DEBUGGING STARTUP ===" && \
-    echo "Timestamp: $(date)" && \
+# Enhanced startup with debugging
+CMD echo "=== STARTING STAYHUB SERVICE ===" && \
     echo "PORT: ${PORT}" && \
-    echo "DATABASE_URL: ${DATABASE_URL}" && \
     echo "JAVA_OPTS: ${JAVA_OPTS}" && \
     echo "SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}" && \
-    echo "Available memory: $(free -h)" && \
-    echo "Disk space: $(df -h /)" && \
-    echo "CPU info: $(nproc) cores" && \
-    echo "Environment variables:" && \
-    env | grep -E "(PORT|DATABASE|SPRING|JAVA)" | sort && \
-    echo "=== STARTING JAVA APPLICATION ===" && \
-    echo "Java version: $(java -version 2>&1)" && \
-    echo "JVM Args: ${JAVA_OPTS}" && \
+    echo "Max Memory: $(echo ${JAVA_OPTS} | grep -o 'Xmx[0-9]*[mg]')" && \
+    echo "Starting application..." && \
     exec java \
-         -Dserver.port=${PORT:-8084} \
+         -Dserver.port=${PORT:-8080} \
          -Djava.security.egd=file:/dev/./urandom \
          -Dspring.profiles.active=${SPRING_PROFILES_ACTIVE:-default} \
-         -Dlogging.level.org.springframework.boot.web.embedded.tomcat=INFO \
          -Dlogging.level.org.springframework.boot=INFO \
-         -Dlogging.level.org.springframework.boot.actuate=DEBUG \
-         -Dlogging.level.com.stayhub=DEBUG \
-         -Dserver.tomcat.accept-count=5 \
          -Dserver.tomcat.max-connections=20 \
          -Dspring.jpa.show-sql=false \
-         -Dmanagement.endpoint.health.show-details=always \
          -XX:+UseG1GC \
          ${JAVA_OPTS:--Xmx512m -Xms256m} \
          -jar app.jar
