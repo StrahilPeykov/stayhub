@@ -32,13 +32,13 @@ USER appuser
 # Set proper port
 EXPOSE ${PORT}
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-8080}/actuator/health || exit 1
+# No Docker healthcheck - Railway will handle this
+# HEALTHCHECK removed to avoid conflicts with Railway's healthcheck
 
 # Start the application
 CMD echo "=== Starting StayHub Service ===" && \
     echo "PORT: ${PORT}" && \
+    echo "DATABASE_URL: ${DATABASE_URL}" && \
     echo "JAVA_OPTS: ${JAVA_OPTS}" && \
     echo "SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}" && \
     echo "Starting application..." && \
@@ -46,5 +46,8 @@ CMD echo "=== Starting StayHub Service ===" && \
          -Dserver.port=${PORT:-8080} \
          -Djava.security.egd=file:/dev/./urandom \
          -Dspring.profiles.active=${SPRING_PROFILES_ACTIVE:-default} \
-         ${JAVA_OPTS:--Xmx300m -Xms150m -XX:+UseG1GC} \
+         -Dspring.jpa.show-sql=false \
+         -Dlogging.level.org.springframework.boot=INFO \
+         -Dlogging.level.org.hibernate=WARN \
+         ${JAVA_OPTS:--Xmx350m -Xms150m -XX:+UseG1GC} \
          -jar app.jar
