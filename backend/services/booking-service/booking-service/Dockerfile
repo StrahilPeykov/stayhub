@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/target/*.jar app.jar
 
 # Verify the JAR was copied
-RUN ls -la /app/ && file app.jar
+RUN ls -la /app/ && echo "JAR file size: $(du -h app.jar)"
 
 # Set proper port
 EXPOSE ${PORT}
