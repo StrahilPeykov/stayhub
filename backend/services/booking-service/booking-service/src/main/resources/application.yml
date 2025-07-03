@@ -4,7 +4,7 @@ spring:
     name: booking-service
   
   datasource:
-    url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:stayhub_bookings}
+    url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:railway}
     username: ${PGUSER:postgres}
     password: ${PGPASSWORD:1234}
     driver-class-name: org.postgresql.Driver
@@ -29,6 +29,10 @@ spring:
           time_zone: UTC
         connection:
           handling_mode: delayed_acquisition_and_release_after_transaction
+  
+  # Cache configuration
+  cache:
+    type: simple
   
   # Exclude optional integrations we don't have
   autoconfigure:

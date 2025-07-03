@@ -4,7 +4,7 @@ spring:
     name: property-service
   
   datasource:
-    url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:stayhub_properties}
+    url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:railway}
     username: ${PGUSER:postgres}
     password: ${PGPASSWORD:1234}
     driver-class-name: org.postgresql.Driver
@@ -25,6 +25,10 @@ spring:
         format_sql: false
         jdbc:
           time_zone: UTC
+  
+  # Cache configuration
+  cache:
+    type: simple
   
   # Only exclude optional integrations we don't have
   autoconfigure:

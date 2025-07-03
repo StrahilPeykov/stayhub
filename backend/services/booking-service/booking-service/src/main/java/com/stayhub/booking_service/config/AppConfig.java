@@ -4,9 +4,6 @@ import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -29,7 +26,11 @@ public class AppConfig {
                 .build();
     }
     
+    // Redis template removed since Redis is not available
+    // When Redis is added later, uncomment this:
+    /*
     @Bean
+    @ConditionalOnBean(RedisConnectionFactory.class)
     public RedisTemplate<String, String> redisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, String> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
@@ -37,4 +38,5 @@ public class AppConfig {
         template.setValueSerializer(new StringRedisSerializer());
         return template;
     }
+    */
 }
