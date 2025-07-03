@@ -3,11 +3,11 @@ spring:
   application:
     name: booking-service
   
-  # Enable database configurations for Railway PostgreSQL
+  # Database configuration for Railway
   datasource:
-    url: ${DATABASE_URL}
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/stayhub_bookings}
     username: ${PGUSER:postgres}
-    password: ${PGPASSWORD}
+    password: ${PGPASSWORD:1234}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 5
@@ -15,6 +15,9 @@ spring:
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
+      # Add connection test query
+      connection-test-query: SELECT 1
+      validation-timeout: 5000
   
   jpa:
     hibernate:
@@ -26,8 +29,10 @@ spring:
         format_sql: false
         jdbc:
           time_zone: UTC
+        connection:
+          handling_mode: delayed_acquisition_and_release_after_transaction
   
-  # Only exclude optional integrations we don't have
+  # Exclude optional integrations we don't have
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
@@ -48,7 +53,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics
   endpoint:
     health:
       show-details: always
@@ -56,13 +61,15 @@ management:
 logging:
   level:
     root: INFO
-    com.stayhub: INFO
+    com.stayhub: DEBUG
     org.springframework.boot: INFO
+    com.zaxxer.hikari: DEBUG
+    org.hibernate.SQL: DEBUG
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
 
 ---
-# Railway profile (already active)
+# Railway profile
 spring:
   config:
     activate:

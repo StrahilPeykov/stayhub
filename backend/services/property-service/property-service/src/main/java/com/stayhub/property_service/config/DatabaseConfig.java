@@ -1,4 +1,4 @@
-package com.stayhub.booking_service.config;
+package com.stayhub.property_service.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.jdbc.DataSourceBuilder;
@@ -12,7 +12,7 @@ import javax.sql.DataSource;
 
 @Configuration
 @EnableTransactionManagement
-@EnableJpaRepositories(basePackages = "com.stayhub.booking_service.repository")
+@EnableJpaRepositories(basePackages = "com.stayhub.property_service.repository")
 public class DatabaseConfig {
     
     @Bean
