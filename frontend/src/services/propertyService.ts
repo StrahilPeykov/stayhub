@@ -1,4 +1,4 @@
-import { propertyApi, handleApiResponse } from '@/lib/api/client';
+import { propertyApi, searchApi, handleApiResponse } from '@/lib/api/client';
 import { Property, PaginatedResponse } from '@/lib/types';
 
 export const propertyService = {
@@ -23,10 +23,10 @@ export const propertyService = {
 
   async searchProperties(params: {
     query?: string;
-    city?: string;
-    checkIn: string;
-    checkOut: string;
-    guests: number;
+    location?: string;
+    checkIn?: string;
+    checkOut?: string;
+    guests?: number;
     priceMin?: number;
     priceMax?: number;
     amenities?: string[];

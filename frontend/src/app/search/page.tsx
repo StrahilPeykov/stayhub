@@ -60,7 +60,7 @@ function SearchContent() {
   const { data: searchResults, isLoading, error } = useQuery({
     queryKey: ['properties', 'search', location, checkIn, checkOut, guests, sortBy, priceRange, selectedAmenities, selectedPropertyTypes, selectedRating],
     queryFn: () => propertyService.searchProperties({
-      city: location,
+      location: location,
       checkIn,
       checkOut,
       guests,
