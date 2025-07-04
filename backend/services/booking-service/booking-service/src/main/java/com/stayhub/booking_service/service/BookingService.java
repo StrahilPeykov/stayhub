@@ -7,7 +7,6 @@ import com.stayhub.booking_service.repository.*;
 import com.stayhub.booking_service.event.BookingEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -31,6 +30,8 @@ public class BookingService {
     private final AvailabilityRepository availabilityRepository;
     private final RoomTypeRepository roomTypeRepository;
     private final BookingEventPublisher eventPublisher;
+    private final DynamicPricingService dynamicPricingService;
+    private final AvailabilityService availabilityService;
     
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public BookingResponse createBooking(BookingRequest request) {
@@ -59,14 +60,27 @@ public class BookingService {
                 throw new ValidationException("Guest count exceeds room capacity");
             }
             
-            // Check and update availability
-            boolean available = checkAndReserveRooms(request);
-            if (!available) {
+            // Reserve rooms using enhanced availability service
+            boolean reserved = availabilityService.reserveRooms(
+                    request.getPropertyId(), 
+                    request.getRoomTypeId(),
+                    request.getCheckIn(), 
+                    request.getCheckOut(), 
+                    request.getNumberOfRooms()
+            );
+            
+            if (!reserved) {
                 throw new RoomNotAvailableException("Rooms not available for selected dates");
             }
             
-            // Calculate price
-            BigDecimal totalAmount = calculateTotalPrice(roomType, request);
+            // Calculate price using dynamic pricing
+            BigDecimal totalAmount = dynamicPricingService.calculateDynamicPrice(
+                    roomType, 
+                    request.getCheckIn(), 
+                    request.getCheckOut(),
+                    request.getPropertyId(), 
+                    request.getNumberOfRooms()
+            );
             
             // Create booking
             Booking booking = Booking.builder()
@@ -86,16 +100,183 @@ public class BookingService {
             
             booking = bookingRepository.save(booking);
             
-            // Publish event (will be logged if Kafka is not available)
+            // Publish event
             eventPublisher.publishBookingCreated(booking);
             
-            log.info("Booking created successfully with id: {}", booking.getId());
+            log.info("Booking created successfully with id: {} for ${}", booking.getId(), totalAmount);
             return mapToResponse(booking);
             
         } catch (Exception e) {
             log.error("Failed to create booking", e);
             throw e;
         }
+    }
+    
+    /**
+     * Extend a booking period
+     */
+    @Transactional
+    public BookingResponse extendBooking(UUID bookingId, LocalDate newCheckOut) {
+        log.info("Extending booking {} to new checkout date: {}", bookingId, newCheckOut);
+        
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+        
+        // Validate booking can be extended
+        if (booking.getStatus() != BookingStatus.CONFIRMED) {
+            throw new InvalidBookingStateException("Only confirmed bookings can be extended");
+        }
+        
+        if (!newCheckOut.isAfter(booking.getCheckOutDate())) {
+            throw new ValidationException("New checkout date must be after current checkout date");
+        }
+        
+        if (newCheckOut.isAfter(booking.getCheckInDate().plusDays(30))) {
+            throw new ValidationException("Total booking duration cannot exceed 30 days");
+        }
+        
+        // Check availability for extension period
+        boolean available = availabilityService.reserveRooms(
+                booking.getPropertyId(),
+                booking.getRoomTypeId(),
+                booking.getCheckOutDate(), // Start from current checkout
+                newCheckOut,
+                booking.getNumberOfRooms()
+        );
+        
+        if (!available) {
+            throw new RoomNotAvailableException("Rooms not available for extension period");
+        }
+        
+        // Get room type for pricing
+        RoomType roomType = roomTypeRepository.findById(booking.getRoomTypeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Room type not found"));
+        
+        // Calculate additional cost
+        long additionalNights = ChronoUnit.DAYS.between(booking.getCheckOutDate(), newCheckOut);
+        BigDecimal extensionPrice = dynamicPricingService.calculateDynamicPrice(
+                roomType,
+                booking.getCheckOutDate(),
+                newCheckOut,
+                booking.getPropertyId(),
+                booking.getNumberOfRooms()
+        );
+        
+        // Update booking
+        booking.setCheckOutDate(newCheckOut);
+        booking.setTotalAmount(booking.getTotalAmount().add(extensionPrice));
+        booking = bookingRepository.save(booking);
+        
+        log.info("Booking {} extended by {} nights for additional ${}", 
+                bookingId, additionalNights, extensionPrice);
+        
+        return mapToResponse(booking);
+    }
+    
+    /**
+     * Modify guest count
+     */
+    @Transactional
+    public BookingResponse modifyGuestCount(UUID bookingId, int newGuestCount) {
+        log.info("Modifying guest count for booking {} to {}", bookingId, newGuestCount);
+        
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+        
+        if (booking.getStatus() != BookingStatus.CONFIRMED) {
+            throw new InvalidBookingStateException("Only confirmed bookings can be modified");
+        }
+        
+        // Get room type to validate capacity
+        RoomType roomType = roomTypeRepository.findById(booking.getRoomTypeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Room type not found"));
+        
+        int maxCapacity = roomType.getMaxOccupancy() * booking.getNumberOfRooms();
+        if (newGuestCount > maxCapacity) {
+            throw new ValidationException(
+                    String.format("Guest count %d exceeds maximum capacity %d", newGuestCount, maxCapacity)
+            );
+        }
+        
+        if (newGuestCount < 1) {
+            throw new ValidationException("At least one guest is required");
+        }
+        
+        // Update booking
+        booking.setNumberOfGuests(newGuestCount);
+        booking = bookingRepository.save(booking);
+        
+        log.info("Guest count updated from {} to {} for booking {}", 
+                booking.getNumberOfGuests(), newGuestCount, bookingId);
+        
+        return mapToResponse(booking);
+    }
+    
+    /**
+     * Add or modify rooms (if available)
+     */
+    @Transactional
+    public BookingResponse modifyRoomCount(UUID bookingId, int newRoomCount) {
+        log.info("Modifying room count for booking {} to {}", bookingId, newRoomCount);
+        
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+        
+        if (booking.getStatus() != BookingStatus.CONFIRMED) {
+            throw new InvalidBookingStateException("Only confirmed bookings can be modified");
+        }
+        
+        if (newRoomCount < 1 || newRoomCount > 10) {
+            throw new ValidationException("Room count must be between 1 and 10");
+        }
+        
+        int roomDifference = newRoomCount - booking.getNumberOfRooms();
+        
+        if (roomDifference > 0) {
+            // Adding rooms - check availability
+            boolean available = availabilityService.reserveRooms(
+                    booking.getPropertyId(),
+                    booking.getRoomTypeId(),
+                    booking.getCheckInDate(),
+                    booking.getCheckOutDate(),
+                    roomDifference
+            );
+            
+            if (!available) {
+                throw new RoomNotAvailableException("Additional rooms not available");
+            }
+        } else if (roomDifference < 0) {
+            // Removing rooms - release them
+            availabilityService.releaseRooms(
+                    booking.getPropertyId(),
+                    booking.getRoomTypeId(),
+                    booking.getCheckInDate(),
+                    booking.getCheckOutDate(),
+                    Math.abs(roomDifference)
+            );
+        }
+        
+        // Recalculate price
+        RoomType roomType = roomTypeRepository.findById(booking.getRoomTypeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Room type not found"));
+        
+        BigDecimal newTotalPrice = dynamicPricingService.calculateDynamicPrice(
+                roomType,
+                booking.getCheckInDate(),
+                booking.getCheckOutDate(),
+                booking.getPropertyId(),
+                newRoomCount
+        );
+        
+        // Update booking
+        booking.setNumberOfRooms(newRoomCount);
+        booking.setTotalAmount(newTotalPrice);
+        booking = bookingRepository.save(booking);
+        
+        log.info("Room count updated from {} to {} for booking {}, new price: ${}", 
+                booking.getNumberOfRooms(), newRoomCount, bookingId, newTotalPrice);
+        
+        return mapToResponse(booking);
     }
     
     @Transactional
@@ -119,8 +300,14 @@ public class BookingService {
         booking.setCancelledAt(LocalDateTime.now());
         booking.setRefundAmount(refundAmount);
         
-        // Restore availability
-        restoreAvailability(booking);
+        // Release rooms back to availability
+        availabilityService.releaseRooms(
+                booking.getPropertyId(),
+                booking.getRoomTypeId(),
+                booking.getCheckInDate(),
+                booking.getCheckOutDate(),
+                booking.getNumberOfRooms()
+        );
         
         booking = bookingRepository.save(booking);
         
@@ -128,6 +315,37 @@ public class BookingService {
         eventPublisher.publishBookingCancelled(booking);
         
         return mapToResponse(booking);
+    }
+    
+    /**
+     * Get price preview without creating booking
+     */
+    public PricePreviewResponse getBookingPricePreview(BookingRequest request) {
+        RoomType roomType = roomTypeRepository.findById(request.getRoomTypeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Room type not found"));
+        
+        BigDecimal totalPrice = dynamicPricingService.calculateDynamicPrice(
+                roomType,
+                request.getCheckIn(),
+                request.getCheckOut(),
+                request.getPropertyId(),
+                request.getNumberOfRooms()
+        );
+        
+        Map<String, Object> breakdown = dynamicPricingService.getPriceBreakdown(
+                roomType,
+                request.getCheckIn(),
+                request.getCheckOut(),
+                request.getPropertyId(),
+                request.getNumberOfRooms()
+        );
+        
+        return PricePreviewResponse.builder()
+                .totalPrice(totalPrice)
+                .currency("USD")
+                .priceBreakdown(breakdown)
+                .cancellationPolicy(getCancellationPolicyDescription())
+                .build();
     }
     
     @Cacheable(value = "bookings", key = "#bookingId", condition = "@environment.getProperty('spring.cache.type') != 'none'")
@@ -153,11 +371,18 @@ public class BookingService {
     @Transactional(readOnly = true)
     public AvailabilityResponse checkAvailability(UUID propertyId, UUID roomTypeId, 
                                                   LocalDate checkIn, LocalDate checkOut) {
-        Integer minAvailable = availabilityRepository.getMinimumAvailability(
-                propertyId, roomTypeId, checkIn, checkOut.minusDays(1));
+        Integer minAvailable = availabilityService.getMinimumAvailability(
+                propertyId, roomTypeId, checkIn, checkOut);
         
         RoomType roomType = roomTypeRepository.findById(roomTypeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Room type not found"));
+        
+        // Get dynamic price for the period
+        BigDecimal dynamicPrice = dynamicPricingService.calculateDynamicPrice(
+                roomType, checkIn, checkOut, propertyId, 1);
+        
+        long nights = ChronoUnit.DAYS.between(checkIn, checkOut);
+        BigDecimal pricePerNight = dynamicPrice.divide(BigDecimal.valueOf(nights), 2, BigDecimal.ROUND_HALF_UP);
         
         return AvailabilityResponse.builder()
                 .propertyId(propertyId)
@@ -166,78 +391,8 @@ public class BookingService {
                 .checkOut(checkOut)
                 .availableRooms(minAvailable != null ? minAvailable : 0)
                 .totalRooms(roomType.getTotalRooms())
-                .pricePerNight(roomType.getBasePrice())
+                .pricePerNight(pricePerNight)
                 .build();
-    }
-    
-    private boolean checkAndReserveRooms(BookingRequest request) {
-        List<Availability> availabilities = availabilityRepository
-                .findByPropertyIdAndRoomTypeIdAndDateBetweenWithLock(
-                        request.getPropertyId(),
-                        request.getRoomTypeId(),
-                        request.getCheckIn(),
-                        request.getCheckOut().minusDays(1)
-                );
-        
-        // Check if all dates have enough rooms
-        boolean allAvailable = availabilities.stream()
-                .allMatch(a -> a.getAvailableRooms() >= request.getNumberOfRooms());
-        
-        if (!allAvailable) {
-            return false;
-        }
-        
-        // Update availability
-        int updated = availabilityRepository.decrementAvailability(
-                request.getPropertyId(),
-                request.getRoomTypeId(),
-                request.getCheckIn(),
-                request.getCheckOut().minusDays(1),
-                request.getNumberOfRooms()
-        );
-        
-        return updated > 0;
-    }
-    
-    private void restoreAvailability(Booking booking) {
-        availabilityRepository.incrementAvailability(
-                booking.getPropertyId(),
-                booking.getRoomTypeId(),
-                booking.getCheckInDate(),
-                booking.getCheckOutDate().minusDays(1),
-                booking.getNumberOfRooms()
-        );
-    }
-    
-    private BigDecimal calculateTotalPrice(RoomType roomType, BookingRequest request) {
-        long nights = ChronoUnit.DAYS.between(request.getCheckIn(), request.getCheckOut());
-        BigDecimal basePrice = roomType.getBasePrice()
-                .multiply(BigDecimal.valueOf(nights))
-                .multiply(BigDecimal.valueOf(request.getNumberOfRooms()));
-        
-        // Apply dynamic pricing (weekend surcharge, seasonal rates, etc.)
-        BigDecimal adjustedPrice = applyDynamicPricing(basePrice, request);
-        
-        return adjustedPrice;
-    }
-    
-    private BigDecimal applyDynamicPricing(BigDecimal basePrice, BookingRequest request) {
-        // Simple example: 20% surcharge for weekend stays
-        boolean hasWeekend = false;
-        LocalDate date = request.getCheckIn();
-        while (!date.isAfter(request.getCheckOut())) {
-            if (date.getDayOfWeek().getValue() >= 6) {
-                hasWeekend = true;
-                break;
-            }
-            date = date.plusDays(1);
-        }
-        
-        if (hasWeekend) {
-            return basePrice.multiply(BigDecimal.valueOf(1.2));
-        }
-        
-        return basePrice;
     }
     
     private BigDecimal calculateRefund(Booking booking) {
@@ -251,6 +406,12 @@ public class BookingService {
         } else {
             return BigDecimal.ZERO; // No refund
         }
+    }
+    
+    private String getCancellationPolicyDescription() {
+        return "Free cancellation up to 7 days before check-in. " +
+               "50% refund for cancellations 3-7 days before check-in. " +
+               "No refund for cancellations less than 3 days before check-in.";
     }
     
     private void validateBookingDates(LocalDate checkIn, LocalDate checkOut) {

@@ -31,6 +31,16 @@ public class BookingController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
     
+    /**
+     * Get price preview before booking
+     */
+    @PostMapping("/preview")
+    public ResponseEntity<PricePreviewResponse> getBookingPreview(@Valid @RequestBody BookingRequest request) {
+        log.info("Price preview request for property: {}", request.getPropertyId());
+        PricePreviewResponse preview = bookingService.getBookingPricePreview(request);
+        return ResponseEntity.ok(preview);
+    }
+    
     @GetMapping("/{id}")
     public ResponseEntity<BookingResponse> getBooking(@PathVariable UUID id) {
         BookingResponse response = bookingService.getBooking(id);
@@ -51,11 +61,79 @@ public class BookingController {
         return ResponseEntity.ok(bookings);
     }
     
+    /**
+     * Cancel a booking
+     */
     @PostMapping("/{id}/cancel")
     public ResponseEntity<BookingResponse> cancelBooking(
             @PathVariable UUID id,
             @RequestParam(required = false) String reason) {
         BookingResponse response = bookingService.cancelBooking(id, reason);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Extend booking checkout date
+     */
+    @PutMapping("/{id}/extend")
+    public ResponseEntity<BookingResponse> extendBooking(
+            @PathVariable UUID id,
+            @RequestParam LocalDate newCheckOut) {
+        log.info("Extending booking {} to {}", id, newCheckOut);
+        BookingResponse response = bookingService.extendBooking(id, newCheckOut);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Modify guest count
+     */
+    @PutMapping("/{id}/guests")
+    public ResponseEntity<BookingResponse> modifyGuestCount(
+            @PathVariable UUID id,
+            @RequestParam int newGuestCount) {
+        log.info("Modifying guest count for booking {} to {}", id, newGuestCount);
+        BookingResponse response = bookingService.modifyGuestCount(id, newGuestCount);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Modify room count
+     */
+    @PutMapping("/{id}/rooms")
+    public ResponseEntity<BookingResponse> modifyRoomCount(
+            @PathVariable UUID id,
+            @RequestParam int newRoomCount) {
+        log.info("Modifying room count for booking {} to {}", id, newRoomCount);
+        BookingResponse response = bookingService.modifyRoomCount(id, newRoomCount);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Batch modification endpoint
+     */
+    @PutMapping("/{id}/modify")
+    public ResponseEntity<BookingResponse> modifyBooking(
+            @PathVariable UUID id,
+            @Valid @RequestBody BookingModificationRequest request) {
+        BookingResponse response = null;
+        
+        // Apply modifications in order
+        if (request.getNewCheckOut() != null) {
+            response = bookingService.extendBooking(id, request.getNewCheckOut());
+        }
+        
+        if (request.getNewRoomCount() != null) {
+            response = bookingService.modifyRoomCount(id, request.getNewRoomCount());
+        }
+        
+        if (request.getNewGuestCount() != null) {
+            response = bookingService.modifyGuestCount(id, request.getNewGuestCount());
+        }
+        
+        if (response == null) {
+            response = bookingService.getBooking(id);
+        }
+        
         return ResponseEntity.ok(response);
     }
     
@@ -70,8 +148,3 @@ public class BookingController {
         return ResponseEntity.ok(response);
     }
 }
-
-
-
-
-
