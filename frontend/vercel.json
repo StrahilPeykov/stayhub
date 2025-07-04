@@ -40,6 +40,10 @@
       "destination": "https://booking-production-e88d.up.railway.app/api/v1/room-types/:path*"
     },
     {
+      "source": "/api/v1/availability/:path*",
+      "destination": "https://booking-production-e88d.up.railway.app/api/v1/availability/:path*"
+    },
+    {
       "source": "/api/search/:path*",
       "destination": "https://search-production-3a88.up.railway.app/api/search/:path*"
     },
