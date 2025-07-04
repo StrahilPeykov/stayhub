@@ -31,8 +31,9 @@ export default function TestConnectionPage() {
         i === index ? { ...s, ping: pingResponse.ok ? 'success' : 'error' } : s
       ))
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       setServices(prev => prev.map((s, i) => 
-        i === index ? { ...s, ping: 'error', details: error.message } : s
+        i === index ? { ...s, ping: 'error', details: errorMessage } : s
       ))
     }
 
