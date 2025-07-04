@@ -1,15 +1,43 @@
 {
   "buildCommand": "npm run build",
-  "outputDirectory": ".next",
+  "outputDirectory": ".next",  
   "framework": "nextjs",
+  "functions": {
+    "app/**/*.js": {
+      "maxDuration": 30
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods", 
+          "value": "GET, POST, PUT, DELETE, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "X-Requested-With, Content-Type, Accept, Authorization"
+        }
+      ]
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/properties/:path*",
       "destination": "https://property-production.up.railway.app/api/properties/:path*"
     },
     {
-      "source": "/api/bookings/:path*", 
+      "source": "/api/v1/bookings/:path*", 
       "destination": "https://booking-production-e88d.up.railway.app/api/v1/bookings/:path*"
+    },
+    {
+      "source": "/api/v1/room-types/:path*",
+      "destination": "https://booking-production-e88d.up.railway.app/api/v1/room-types/:path*"
     },
     {
       "source": "/api/search/:path*",
