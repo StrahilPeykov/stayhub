@@ -32,7 +32,7 @@ export const propertyService = {
     amenities?: string[];
   }): Promise<PaginatedResponse<Property>> {
     return handleApiResponse(
-      propertyApi.get('/api/properties/search', { params })
+      searchApi.get('/api/search/properties', { params })
     );
   },
 
