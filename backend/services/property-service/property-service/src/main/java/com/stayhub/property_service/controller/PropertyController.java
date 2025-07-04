@@ -2,6 +2,7 @@ package com.stayhub.property_service.controller;
 
 import com.stayhub.property_service.entity.Property;
 import com.stayhub.property_service.service.PropertyService;
+import com.stayhub.property_service.dto.PropertyDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
