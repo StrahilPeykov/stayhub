@@ -1,4 +1,4 @@
-﻿# Absolute minimal configuration to test basic Spring Boot startup
+﻿# Minimal configuration for user service
 spring:
   application:
     name: user-service
@@ -12,35 +12,51 @@ spring:
       - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
       - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
-      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
-      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
       - org.springframework.boot.autoconfigure.data.web.SpringDataWebAutoConfiguration
+  
+  # CORS configuration
+  web:
+    cors:
+      allowed-origins: "*"
+      allowed-methods: "*"
+      allowed-headers: "*"
+      max-age: 3600
 
-# Minimal server configuration
+# Server configuration
 server:
   port: ${PORT:8084}
+  address: 0.0.0.0
   tomcat:
     max-threads: 10
     min-spare-threads: 2
     connection-timeout: 20000
+  compression:
+    enabled: true
+  http2:
+    enabled: true
+  forward-headers-strategy: native
 
-# Minimal management/actuator
+# Management/actuator endpoints
 management:
   endpoints:
     web:
       exposure:
         include: health,info
+      cors:
+        allowed-origins: "*"
+        allowed-methods: "*"
+        allowed-headers: "*"
   endpoint:
     health:
       show-details: always
 
-# Verbose logging to see what's happening
+# Logging configuration
 logging:
   level:
     root: INFO
     com.stayhub: DEBUG
-    org.springframework.boot: DEBUG
+    org.springframework.boot: INFO
     org.springframework.web: DEBUG
-    org.springframework.boot.web.embedded.tomcat: DEBUG
+    org.springframework.web.cors: DEBUG
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

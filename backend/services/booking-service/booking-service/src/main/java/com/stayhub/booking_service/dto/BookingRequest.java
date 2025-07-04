@@ -5,11 +5,15 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDate;
 import java.util.UUID;
 
 @Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -44,4 +48,15 @@ public class BookingRequest {
     private String specialRequests;
     
     private String idempotencyKey;
+    
+    // Explicit getter methods to ensure they exist
+    public UUID getPropertyId() { return propertyId; }
+    public UUID getUserId() { return userId; }
+    public UUID getRoomTypeId() { return roomTypeId; }
+    public LocalDate getCheckIn() { return checkIn; }
+    public LocalDate getCheckOut() { return checkOut; }
+    public Integer getNumberOfRooms() { return numberOfRooms; }
+    public Integer getNumberOfGuests() { return numberOfGuests; }
+    public String getSpecialRequests() { return specialRequests; }
+    public String getIdempotencyKey() { return idempotencyKey; }
 }

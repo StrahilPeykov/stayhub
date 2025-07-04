@@ -5,11 +5,17 @@ import org.springframework.core.env.Environment;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.http.ResponseEntity;
 
+import jakarta.servlet.http.HttpServletRequest;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.Statement;
+import java.sql.ResultSet;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -68,7 +74,8 @@ public class DebugController {
         dbInfo.put("service", env.getProperty("spring.application.name", "unknown"));
         
         if (dataSource == null) {
-            dbInfo.put("error", "DataSource is null");
+            dbInfo.put("error", "DataSource is null - database auto-configuration disabled");
+            dbInfo.put("note", "This service doesn't require database connectivity for basic operation");
             return ResponseEntity.ok(dbInfo);
         }
         

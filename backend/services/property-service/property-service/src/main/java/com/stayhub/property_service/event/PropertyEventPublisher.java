@@ -27,7 +27,7 @@ public class PropertyEventPublisher {
                 .eventType("PROPERTY_CREATED")
                 .propertyId(property.getId())
                 .propertyName(property.getName())
-                .city(property.getAddress() != null ? property.getAddress().getCity() : null)
+                .city(property.getCity())
                 .totalRooms(property.getTotalRooms())
                 .build();
         
@@ -45,7 +45,7 @@ public class PropertyEventPublisher {
                 .eventType("PROPERTY_UPDATED")
                 .propertyId(property.getId())
                 .propertyName(property.getName())
-                .city(property.getAddress() != null ? property.getAddress().getCity() : null)
+                .city(property.getCity())
                 .totalRooms(property.getTotalRooms())
                 .build();
         
