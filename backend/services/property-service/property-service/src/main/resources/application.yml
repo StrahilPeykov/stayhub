@@ -1,4 +1,4 @@
-# Property Service Configuration for Railway
+# Enhanced Railway Configuration
 spring:
   application:
     name: property-service
@@ -9,11 +9,14 @@ spring:
     password: ${PGPASSWORD:1234}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 5
-      minimum-idle: 2
+      maximum-pool-size: 3  # Reduced for Railway limits
+      minimum-idle: 1
       connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
+      idle-timeout: 300000   # Reduced
+      max-lifetime: 900000   # Reduced
+      connection-test-query: SELECT 1
+      validation-timeout: 5000
+      leak-detection-threshold: 60000
   
   jpa:
     hibernate:
@@ -25,12 +28,24 @@ spring:
         format_sql: false
         jdbc:
           time_zone: UTC
+        connection:
+          handling_mode: delayed_acquisition_and_release_after_transaction
+        temp:
+          use_jdbc_metadata_defaults: false
   
   # Cache configuration
   cache:
     type: simple
   
-  # Only exclude optional integrations we don't have
+  # Railway-specific web configuration
+  web:
+    cors:
+      allowed-origins: "*"
+      allowed-methods: "*"
+      allowed-headers: "*"
+      max-age: 3600
+  
+  # Exclude optional integrations we don't have
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
@@ -41,20 +56,37 @@ server:
   tomcat:
     max-threads: 20
     min-spare-threads: 2
+    accept-count: 50
+    connection-timeout: 20000
+  # Railway-specific configurations
+  address: 0.0.0.0
+  compression:
+    enabled: true
+  http2:
+    enabled: true
+  forward-headers-strategy: native
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics
+      cors:
+        allowed-origins: "*"
+        allowed-methods: "*"
+        allowed-headers: "*"
   endpoint:
     health:
       show-details: always
+      probes:
+        enabled: true
 
 logging:
   level:
     root: INFO
     com.stayhub: INFO
     org.springframework.boot: INFO
+    org.springframework.web.cors: DEBUG  # Enable CORS debugging
+    com.zaxxer.hikari: WARN
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

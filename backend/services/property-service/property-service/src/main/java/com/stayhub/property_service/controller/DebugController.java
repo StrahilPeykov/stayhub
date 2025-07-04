@@ -15,6 +15,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/debug")
+@CrossOrigin(origins = "*", maxAge = 3600)
 public class DebugController {
     
     @Autowired(required = false)
@@ -23,12 +24,38 @@ public class DebugController {
     @Autowired
     private Environment env;
     
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, Object>> health() {
+        Map<String, Object> health = new HashMap<>();
+        health.put("status", "UP");
+        health.put("service", env.getProperty("spring.application.name", "unknown"));
+        health.put("timestamp", System.currentTimeMillis());
+        health.put("version", "1.0.0");
+        health.put("railway_deployment", true);
+        return ResponseEntity.ok(health);
+    }
+    
+    @GetMapping("/cors-test")
+    public ResponseEntity<Map<String, Object>> corsTest(HttpServletRequest request) {
+        Map<String, Object> corsInfo = new HashMap<>();
+        corsInfo.put("origin", request.getHeader("Origin"));
+        corsInfo.put("referer", request.getHeader("Referer"));
+        corsInfo.put("user_agent", request.getHeader("User-Agent"));
+        corsInfo.put("method", request.getMethod());
+        corsInfo.put("url", request.getRequestURL().toString());
+        corsInfo.put("headers", Collections.list(request.getHeaderNames()));
+        return ResponseEntity.ok(corsInfo);
+    }
+    
     @GetMapping("/env")
     public ResponseEntity<Map<String, String>> environment() {
         Map<String, String> envVars = new HashMap<>();
-        envVars.put("service", "property-service");
-        envVars.put("DATABASE_URL", env.getProperty("DATABASE_URL", "NOT_SET"));
+        envVars.put("service", env.getProperty("spring.application.name", "unknown"));
         envVars.put("PORT", env.getProperty("PORT", "NOT_SET"));
+        envVars.put("PGHOST", env.getProperty("PGHOST", "NOT_SET"));
+        envVars.put("PGPORT", env.getProperty("PGPORT", "NOT_SET"));
+        envVars.put("PGDATABASE", env.getProperty("PGDATABASE", "NOT_SET"));
+        envVars.put("PGUSER", env.getProperty("PGUSER", "NOT_SET"));
         envVars.put("JAVA_OPTS", env.getProperty("JAVA_OPTS", "NOT_SET"));
         envVars.put("SPRING_PROFILES_ACTIVE", env.getProperty("SPRING_PROFILES_ACTIVE", "NOT_SET"));
         envVars.put("server.port", env.getProperty("server.port", "NOT_SET"));
@@ -38,7 +65,7 @@ public class DebugController {
     @GetMapping("/db")
     public ResponseEntity<Map<String, Object>> database() {
         Map<String, Object> dbInfo = new HashMap<>();
-        dbInfo.put("service", "property-service");
+        dbInfo.put("service", env.getProperty("spring.application.name", "unknown"));
         
         if (dataSource == null) {
             dbInfo.put("error", "DataSource is null");
@@ -54,20 +81,44 @@ public class DebugController {
             dbInfo.put("driver_version", metaData.getDriverVersion());
             dbInfo.put("database_product", metaData.getDatabaseProductName());
             dbInfo.put("database_version", metaData.getDatabaseProductVersion());
+            
+            // Test a simple query
+            try (Statement stmt = connection.createStatement()) {
+                ResultSet rs = stmt.executeQuery("SELECT 1 as test");
+                if (rs.next()) {
+                    dbInfo.put("query_test", "SUCCESS");
+                }
+            }
         } catch (Exception e) {
             dbInfo.put("connected", false);
             dbInfo.put("error", e.getMessage());
             dbInfo.put("error_class", e.getClass().getSimpleName());
+            e.printStackTrace(); // Log full stack trace
         }
         
         return ResponseEntity.ok(dbInfo);
+    }
+    
+    @GetMapping("/network")
+    public ResponseEntity<Map<String, Object>> network(HttpServletRequest request) {
+        Map<String, Object> networkInfo = new HashMap<>();
+        networkInfo.put("service", env.getProperty("spring.application.name", "unknown"));
+        networkInfo.put("remote_addr", request.getRemoteAddr());
+        networkInfo.put("remote_host", request.getRemoteHost());
+        networkInfo.put("server_name", request.getServerName());
+        networkInfo.put("server_port", request.getServerPort());
+        networkInfo.put("local_addr", request.getLocalAddr());
+        networkInfo.put("local_port", request.getLocalPort());
+        networkInfo.put("scheme", request.getScheme());
+        networkInfo.put("protocol", request.getProtocol());
+        return ResponseEntity.ok(networkInfo);
     }
     
     @GetMapping("/memory")
     public ResponseEntity<Map<String, Object>> memory() {
         Runtime runtime = Runtime.getRuntime();
         Map<String, Object> memInfo = new HashMap<>();
-        memInfo.put("service", "property-service");
+        memInfo.put("service", env.getProperty("spring.application.name", "unknown"));
         memInfo.put("max_memory_mb", runtime.maxMemory() / 1024 / 1024);
         memInfo.put("total_memory_mb", runtime.totalMemory() / 1024 / 1024);
         memInfo.put("free_memory_mb", runtime.freeMemory() / 1024 / 1024);
@@ -76,14 +127,14 @@ public class DebugController {
         return ResponseEntity.ok(memInfo);
     }
     
-    @GetMapping("/startup")
-    public ResponseEntity<Map<String, Object>> startup() {
-        Map<String, Object> startupInfo = new HashMap<>();
-        startupInfo.put("service", "property-service");
-        startupInfo.put("uptime_ms", java.lang.management.ManagementFactory.getRuntimeMXBean().getUptime());
-        startupInfo.put("start_time", new java.util.Date(java.lang.management.ManagementFactory.getRuntimeMXBean().getStartTime()));
-        startupInfo.put("current_time", new java.util.Date());
-        startupInfo.put("pid", java.lang.management.ManagementFactory.getRuntimeMXBean().getName());
-        return ResponseEntity.ok(startupInfo);
+    // OPTIONS handler for CORS preflight
+    @RequestMapping(method = RequestMethod.OPTIONS)
+    public ResponseEntity<Void> handleOptions() {
+        return ResponseEntity.ok()
+                .header("Access-Control-Allow-Origin", "*")
+                .header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+                .header("Access-Control-Allow-Headers", "*")
+                .header("Access-Control-Max-Age", "3600")
+                .build();
     }
 }

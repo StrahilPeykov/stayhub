@@ -15,7 +15,7 @@ WORKDIR /app
 
 # Install curl for health checks
 RUN apt-get update && \
-    apt-get install -y curl && \
+    apt-get install -y curl dnsutils iputils-ping && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy the JAR file
@@ -29,23 +29,31 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 RUN chown appuser:appuser /app/app.jar
 USER appuser
 
-# Set proper port
+# Set proper port (Railway will set this automatically)
 EXPOSE ${PORT}
 
-# Enhanced startup with debugging
+# Railway-optimized startup
 CMD echo "=== STARTING STAYHUB SERVICE ===" && \
     echo "PORT: ${PORT}" && \
+    echo "PGHOST: ${PGHOST}" && \
     echo "JAVA_OPTS: ${JAVA_OPTS}" && \
     echo "SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}" && \
     echo "Max Memory: $(echo ${JAVA_OPTS} | grep -o 'Xmx[0-9]*[mg]')" && \
-    echo "Starting application..." && \
+    echo "Starting application on 0.0.0.0:${PORT}..." && \
     exec java \
          -Dserver.port=${PORT:-8080} \
+         -Dserver.address=0.0.0.0 \
          -Djava.security.egd=file:/dev/./urandom \
-         -Dspring.profiles.active=${SPRING_PROFILES_ACTIVE:-default} \
+         -Dspring.profiles.active=${SPRING_PROFILES_ACTIVE:-railway} \
          -Dlogging.level.org.springframework.boot=INFO \
+         -Dlogging.level.org.springframework.web.cors=DEBUG \
          -Dserver.tomcat.max-connections=20 \
          -Dspring.jpa.show-sql=false \
+         -Dspring.web.cors.allowed-origins=* \
+         -Dspring.web.cors.allowed-methods=* \
+         -Dspring.web.cors.allowed-headers=* \
          -XX:+UseG1GC \
-         ${JAVA_OPTS:--Xmx512m -Xms256m} \
+         -XX:+UseStringDeduplication \
+         -XX:MaxRAMPercentage=75.0 \
+         ${JAVA_OPTS:--Xmx400m -Xms200m} \
          -jar app.jar

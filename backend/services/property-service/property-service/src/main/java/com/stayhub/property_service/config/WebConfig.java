@@ -28,11 +28,14 @@ public class WebConfig implements WebMvcConfigurer {
                     "http://localhost:3001",
                     "http://127.0.0.1:3000",
                     // Add any other domains you might use
-                    "https://*.netlify.app"
+                    "https://*.netlify.app",
+                    // Railway internal domains
+                    "https://*.railway.app",
+                    "https://*.up.railway.app"
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD")
                 .allowedHeaders("*")
-                .allowCredentials(true)
+                .allowCredentials(false) // Set to false for wildcard origins
                 .exposedHeaders("Authorization", "Content-Type", "Accept", "X-Requested-With", "remember-me")
                 .maxAge(3600);
     }
@@ -41,21 +44,8 @@ public class WebConfig implements WebMvcConfigurer {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // Allow specific origins
-        configuration.setAllowedOrigins(Arrays.asList(
-            "https://stayhub.strahil.dev",
-            "http://localhost:3000",
-            "http://localhost:3001",
-            "http://127.0.0.1:3000"
-        ));
-        
-        // Allow all Vercel preview deployments
-        configuration.setAllowedOriginPatterns(Arrays.asList(
-            "https://*.vercel.app",
-            "https://*.netlify.app",
-            "http://localhost:*",
-            "http://127.0.0.1:*"
-        ));
+        // Allow all origins for Railway deployment
+        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
         
         // Allow all HTTP methods
         configuration.setAllowedMethods(Arrays.asList(
@@ -65,8 +55,8 @@ public class WebConfig implements WebMvcConfigurer {
         // Allow all headers
         configuration.setAllowedHeaders(Arrays.asList("*"));
         
-        // Allow credentials (important for auth)
-        configuration.setAllowCredentials(true);
+        // Don't allow credentials with wildcard origins
+        configuration.setAllowCredentials(false);
         
         // Expose headers that the frontend might need
         configuration.setExposedHeaders(Arrays.asList(
@@ -86,5 +76,20 @@ public class WebConfig implements WebMvcConfigurer {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+    
+    // Add CORS filter bean for Railway
+    @Bean
+    public CorsFilter corsFilter() {
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        CorsConfiguration config = new CorsConfiguration();
+        
+        config.setAllowCredentials(false);
+        config.addAllowedOriginPattern("*");
+        config.addAllowedHeader("*");
+        config.addAllowedMethod("*");
+        
+        source.registerCorsConfiguration("/**", config);
+        return new CorsFilter(source);
     }
 }
