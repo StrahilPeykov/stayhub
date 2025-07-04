@@ -41,19 +41,41 @@ public class PropertyService {
     @Cacheable(value = "propertyList")
     public List<Property> getAllProperties() {
         log.debug("Fetching all properties");
-        return propertyRepository.findAll();
+        try {
+            List<Property> properties = propertyRepository.findAll();
+            log.info("Found {} properties in database", properties.size());
+            return properties;
+        } catch (Exception e) {
+            log.error("Error fetching all properties", e);
+            throw e;
+        }
     }
     
     @Cacheable(value = "propertiesByCity", key = "#city")
     public List<Property> findPropertiesByCity(String city) {
         log.debug("Fetching properties for city: {}", city);
-        return propertyRepository.findByAddressCity(city);
+        try {
+            // Updated method name to match the fixed repository
+            List<Property> properties = propertyRepository.findByCity(city);
+            log.info("Found {} properties in city: {}", properties.size(), city);
+            return properties;
+        } catch (Exception e) {
+            log.error("Error fetching properties for city: {}", city, e);
+            throw e;
+        }
     }
     
     @Cacheable(value = "nearbyProperties", key = "#latitude + '_' + #longitude + '_' + #radius")
     public List<Property> findPropertiesNearby(Double latitude, Double longitude, Double radius) {
         log.debug("Fetching properties near: {}, {} within {} km", latitude, longitude, radius);
-        return propertyRepository.findPropertiesWithinRadius(latitude, longitude, radius);
+        try {
+            List<Property> properties = propertyRepository.findPropertiesWithinRadius(latitude, longitude, radius);
+            log.info("Found {} properties within {} km of {}, {}", properties.size(), radius, latitude, longitude);
+            return properties;
+        } catch (Exception e) {
+            log.error("Error fetching nearby properties", e);
+            throw e;
+        }
     }
     
     @Transactional
@@ -67,7 +89,11 @@ public class PropertyService {
                 .map(existing -> {
                     existing.setName(propertyUpdate.getName());
                     existing.setDescription(propertyUpdate.getDescription());
-                    existing.setAddress(propertyUpdate.getAddress());
+                    existing.setStreet(propertyUpdate.getStreet());
+                    existing.setCity(propertyUpdate.getCity());
+                    existing.setState(propertyUpdate.getState());
+                    existing.setCountry(propertyUpdate.getCountry());
+                    existing.setZipCode(propertyUpdate.getZipCode());
                     existing.setAmenities(propertyUpdate.getAmenities());
                     existing.setTotalRooms(propertyUpdate.getTotalRooms());
                     existing.setBasePrice(propertyUpdate.getBasePrice());
@@ -90,5 +116,17 @@ public class PropertyService {
             propertyRepository.deleteById(id);
             eventPublisher.publishPropertyDeleted(property);
         });
+    }
+    
+    // New method for debugging
+    public long getPropertyCount() {
+        try {
+            long count = propertyRepository.count();
+            log.info("Total properties in database: {}", count);
+            return count;
+        } catch (Exception e) {
+            log.error("Error getting property count", e);
+            throw e;
+        }
     }
 }

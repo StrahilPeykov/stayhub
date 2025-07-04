@@ -4,6 +4,7 @@ import com.stayhub.property_service.entity.Property;
 import com.stayhub.property_service.service.PropertyService;
 import com.stayhub.property_service.dto.PropertyDTO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,65 +17,127 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/properties")
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*", maxAge = 3600)
+@Slf4j
 public class PropertyController {
     
     private final PropertyService propertyService;
     
     @PostMapping
     public ResponseEntity<PropertyDTO> createProperty(@RequestBody Property property) {
-        Property created = propertyService.createProperty(property);
-        return ResponseEntity.status(HttpStatus.CREATED).body(mapToDTO(created));
+        try {
+            log.info("Creating property: {}", property.getName());
+            Property created = propertyService.createProperty(property);
+            return ResponseEntity.status(HttpStatus.CREATED).body(mapToDTO(created));
+        } catch (Exception e) {
+            log.error("Error creating property", e);
+            throw e;
+        }
     }
     
     @GetMapping("/{id}")
     public ResponseEntity<PropertyDTO> getProperty(@PathVariable UUID id) {
-        return propertyService.getProperty(id)
-                .map(property -> ResponseEntity.ok(mapToDTO(property)))
-                .orElse(ResponseEntity.notFound().build());
+        try {
+            log.info("Fetching property: {}", id);
+            return propertyService.getProperty(id)
+                    .map(property -> ResponseEntity.ok(mapToDTO(property)))
+                    .orElse(ResponseEntity.notFound().build());
+        } catch (Exception e) {
+            log.error("Error fetching property: {}", id, e);
+            throw e;
+        }
     }
     
     @GetMapping
-    public List<PropertyDTO> getAllProperties(
+    public ResponseEntity<List<PropertyDTO>> getAllProperties(
             @RequestParam(required = false) String city,
             @RequestParam(required = false) Double lat,
             @RequestParam(required = false) Double lon,
             @RequestParam(required = false, defaultValue = "10") Double radius) {
         
-        List<Property> properties;
-        if (lat != null && lon != null) {
-            properties = propertyService.findPropertiesNearby(lat, lon, radius);
-        } else if (city != null) {
-            properties = propertyService.findPropertiesByCity(city);
-        } else {
-            properties = propertyService.getAllProperties();
+        try {
+            log.info("Fetching properties with params - city: {}, lat: {}, lon: {}, radius: {}", 
+                    city, lat, lon, radius);
+            
+            List<Property> properties;
+            if (lat != null && lon != null) {
+                properties = propertyService.findPropertiesNearby(lat, lon, radius);
+            } else if (city != null) {
+                properties = propertyService.findPropertiesByCity(city);
+            } else {
+                properties = propertyService.getAllProperties();
+            }
+            
+            log.info("Found {} properties", properties.size());
+            
+            List<PropertyDTO> propertyDTOs = properties.stream()
+                    .map(this::mapToDTO)
+                    .collect(Collectors.toList());
+            
+            return ResponseEntity.ok(propertyDTOs);
+            
+        } catch (Exception e) {
+            log.error("Error fetching properties", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(List.of());
         }
-        
-        return properties.stream()
-                .map(this::mapToDTO)
-                .collect(Collectors.toList());
     }
     
     @GetMapping("/featured")
-    public List<PropertyDTO> getFeaturedProperties() {
-        List<Property> properties = propertyService.getAllProperties();
-        return properties.stream()
-                .limit(6) // Return first 6 as featured for now
-                .map(this::mapToDTO)
-                .collect(Collectors.toList());
+    public ResponseEntity<List<PropertyDTO>> getFeaturedProperties() {
+        try {
+            log.info("Fetching featured properties");
+            List<Property> properties = propertyService.getAllProperties();
+            List<PropertyDTO> featuredProperties = properties.stream()
+                    .limit(6) // Return first 6 as featured for now
+                    .map(this::mapToDTO)
+                    .collect(Collectors.toList());
+            
+            log.info("Returning {} featured properties", featuredProperties.size());
+            return ResponseEntity.ok(featuredProperties);
+        } catch (Exception e) {
+            log.error("Error fetching featured properties", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(List.of());
+        }
     }
     
     @PutMapping("/{id}")
     public ResponseEntity<PropertyDTO> updateProperty(@PathVariable UUID id, 
                                                  @RequestBody Property property) {
-        return propertyService.updateProperty(id, property)
-                .map(updated -> ResponseEntity.ok(mapToDTO(updated)))
-                .orElse(ResponseEntity.notFound().build());
+        try {
+            log.info("Updating property: {}", id);
+            return propertyService.updateProperty(id, property)
+                    .map(updated -> ResponseEntity.ok(mapToDTO(updated)))
+                    .orElse(ResponseEntity.notFound().build());
+        } catch (Exception e) {
+            log.error("Error updating property: {}", id, e);
+            throw e;
+        }
     }
     
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteProperty(@PathVariable UUID id) {
-        propertyService.deleteProperty(id);
-        return ResponseEntity.noContent().build();
+        try {
+            log.info("Deleting property: {}", id);
+            propertyService.deleteProperty(id);
+            return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            log.error("Error deleting property: {}", id, e);
+            throw e;
+        }
+    }
+    
+    // Debug endpoint to check database connection and data
+    @GetMapping("/debug/count")
+    public ResponseEntity<String> getPropertyCount() {
+        try {
+            long count = propertyService.getPropertyCount();
+            return ResponseEntity.ok("Total properties in database: " + count);
+        } catch (Exception e) {
+            log.error("Error getting property count", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error: " + e.getMessage());
+        }
     }
     
     private PropertyDTO mapToDTO(Property property) {
@@ -85,11 +148,11 @@ public class PropertyController {
         
         // Map address
         PropertyDTO.AddressDTO address = new PropertyDTO.AddressDTO();
-        address.setStreet(property.getAddress().getStreet());
-        address.setCity(property.getAddress().getCity());
-        address.setState(property.getAddress().getState());
-        address.setCountry(property.getAddress().getCountry());
-        address.setZipCode(property.getAddress().getZipCode());
+        address.setStreet(property.getStreet());
+        address.setCity(property.getCity());
+        address.setState(property.getState());
+        address.setCountry(property.getCountry());
+        address.setZipCode(property.getZipCode());
         dto.setAddress(address);
         
         dto.setLatitude(property.getLatitude());

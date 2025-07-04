@@ -28,8 +28,21 @@ public class Property {
     @Column(columnDefinition = "TEXT")
     private String description;
     
-    @Embedded
-    private Address address;
+    // Map address fields directly instead of using @Embedded
+    @Column(name = "street")
+    private String street;
+    
+    @Column(name = "city")
+    private String city;
+    
+    @Column(name = "state")
+    private String state;
+    
+    @Column(name = "country")
+    private String country;
+    
+    @Column(name = "zip_code")
+    private String zipCode;
     
     private Double latitude;
     private Double longitude;
@@ -40,9 +53,10 @@ public class Property {
     @Column(name = "amenity")
     private List<String> amenities;
     
+    @Column(name = "total_rooms")
     private Integer totalRooms;
     
-    @Column(precision = 10, scale = 2)
+    @Column(name = "base_price", precision = 10, scale = 2)
     private BigDecimal basePrice;
     
     private String currency = "USD";
@@ -62,5 +76,16 @@ public class Property {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+    
+    // Helper method to create Address DTO for frontend
+    public Address getAddress() {
+        Address address = new Address();
+        address.setStreet(this.street);
+        address.setCity(this.city);
+        address.setState(this.state);
+        address.setCountry(this.country);
+        address.setZipCode(this.zipCode);
+        return address;
     }
 }
