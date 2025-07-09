@@ -28,19 +28,19 @@ public class DynamicPricingService {
     private static final BigDecimal LOW_DEMAND_MULTIPLIER = new BigDecimal("0.80");
     
     // Seasonal multipliers
-    private static final Map<Integer, BigDecimal> SEASONAL_MULTIPLIERS = Map.of(
-        1, new BigDecimal("0.85"),  // January - Low season
-        2, new BigDecimal("0.90"),  // February
-        3, new BigDecimal("1.00"),  // March
-        4, new BigDecimal("1.10"),  // April
-        5, new BigDecimal("1.15"),  // May
-        6, new BigDecimal("1.30"),  // June - High season
-        7, new BigDecimal("1.35"),  // July - Peak season
-        8, new BigDecimal("1.35"),  // August - Peak season
-        9, new BigDecimal("1.20"),  // September
-        10, new BigDecimal("1.10"), // October
-        11, new BigDecimal("0.95"), // November
-        12, new BigDecimal("1.25")  // December - Holiday season
+    private static final Map<Integer, BigDecimal> SEASONAL_MULTIPLIERS = Map.ofEntries(
+        Map.entry(1, new BigDecimal("0.85")),  // January - Low season
+        Map.entry(2, new BigDecimal("0.90")),  // February
+        Map.entry(3, new BigDecimal("1.00")),  // March
+        Map.entry(4, new BigDecimal("1.10")),  // April
+        Map.entry(5, new BigDecimal("1.15")),  // May
+        Map.entry(6, new BigDecimal("1.30")),  // June - High season
+        Map.entry(7, new BigDecimal("1.35")),  // July - Peak season
+        Map.entry(8, new BigDecimal("1.35")),  // August - Peak season
+        Map.entry(9, new BigDecimal("1.20")),  // September
+        Map.entry(10, new BigDecimal("1.10")), // October
+        Map.entry(11, new BigDecimal("0.95")), // November
+        Map.entry(12, new BigDecimal("1.25"))  // December - Holiday season
     );
     
     /**
