@@ -14,7 +14,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-class RevenueDTO {
+public class RevenueDTO {
     private UUID ownerId;
     private String period;
     private BigDecimal totalRevenue;

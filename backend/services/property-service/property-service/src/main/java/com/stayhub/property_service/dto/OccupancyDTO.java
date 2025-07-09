@@ -14,7 +14,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-class OccupancyDTO {
+public class OccupancyDTO {
     private UUID propertyId;
     private LocalDate month;
     private Double averageOccupancy;

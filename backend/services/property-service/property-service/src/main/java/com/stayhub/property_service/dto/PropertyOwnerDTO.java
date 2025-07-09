@@ -12,7 +12,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-class PropertyOwnerDTO {
+public class PropertyOwnerDTO {
     private UUID id;
     private String name;
     private String location;

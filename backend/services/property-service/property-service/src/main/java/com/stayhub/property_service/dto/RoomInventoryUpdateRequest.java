@@ -9,7 +9,7 @@ import java.time.LocalDate;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-class RoomInventoryUpdateRequest {
+public class RoomInventoryUpdateRequest {
     private LocalDate date;
     private Integer newTotalRooms;
 }

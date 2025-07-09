@@ -15,7 +15,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-class PropertyAnalyticsDTO {
+public class PropertyAnalyticsDTO {
     private UUID propertyId;
     private String propertyName;
     private LocalDate periodStart;

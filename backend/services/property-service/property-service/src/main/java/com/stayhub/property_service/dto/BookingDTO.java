@@ -13,7 +13,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-class BookingDTO {
+public class BookingDTO {
     private UUID bookingId;
     private String guestName;
     private LocalDate checkIn;

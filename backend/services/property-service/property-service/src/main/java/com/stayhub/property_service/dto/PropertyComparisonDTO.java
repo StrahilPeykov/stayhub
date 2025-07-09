@@ -12,7 +12,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-class PropertyComparisonDTO {
+public class PropertyComparisonDTO {
     private UUID propertyId;
     private String propertyName;
     private String metric;

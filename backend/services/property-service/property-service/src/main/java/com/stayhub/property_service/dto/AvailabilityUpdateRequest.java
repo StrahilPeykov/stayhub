@@ -10,7 +10,7 @@ import java.util.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-class AvailabilityUpdateRequest {
+public class AvailabilityUpdateRequest {
     private UUID roomTypeId;
     private LocalDate startDate;
     private LocalDate endDate;

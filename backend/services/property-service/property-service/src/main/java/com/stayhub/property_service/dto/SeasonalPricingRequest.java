@@ -10,7 +10,7 @@ import java.time.LocalDate;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-class SeasonalPricingRequest {
+public class SeasonalPricingRequest {
     private LocalDate startDate;
     private LocalDate endDate;
     private BigDecimal priceMultiplier;
