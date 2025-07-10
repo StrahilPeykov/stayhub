@@ -28,6 +28,9 @@ const popularDestinations: LocationSuggestion[] = [
   { id: 'pop-3', name: 'Tokyo', type: 'city', country: 'Japan', popularity: 88 },
   { id: 'pop-4', name: 'London', type: 'city', country: 'United Kingdom', popularity: 90 },
   { id: 'pop-5', name: 'Barcelona', type: 'city', country: 'Spain', popularity: 85 },
+  { id: 'pop-6', name: 'Amsterdam', type: 'city', country: 'Netherlands', popularity: 87 },
+  { id: 'pop-7', name: 'Dubai', type: 'city', country: 'UAE', popularity: 83 },
+  { id: 'pop-8', name: 'Singapore', type: 'city', country: 'Singapore', popularity: 86 },
 ]
 
 const recentSearches: LocationSuggestion[] = [
@@ -46,7 +49,7 @@ export function LocationSearch({ value, onChange, placeholder = "Where to?", cla
   // Mock search function
   const searchLocations = async (searchTerm: string): Promise<LocationSuggestion[]> => {
     // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 300))
+    await new Promise(resolve => setTimeout(resolve, 200))
     
     const allLocations: LocationSuggestion[] = [
       { id: '1', name: 'Amsterdam', type: 'city', country: 'Netherlands' },
@@ -59,6 +62,11 @@ export function LocationSearch({ value, onChange, placeholder = "Where to?", cla
       { id: '8', name: 'Barcelona', type: 'city', country: 'Spain' },
       { id: '9', name: 'Dubai', type: 'city', country: 'UAE' },
       { id: '10', name: 'Singapore', type: 'city', country: 'Singapore' },
+      { id: '11', name: 'Rome', type: 'city', country: 'Italy' },
+      { id: '12', name: 'Berlin', type: 'city', country: 'Germany' },
+      { id: '13', name: 'Sydney', type: 'city', country: 'Australia' },
+      { id: '14', name: 'Bangkok', type: 'city', country: 'Thailand' },
+      { id: '15', name: 'Istanbul', type: 'city', country: 'Turkey' },
     ]
     
     return allLocations.filter(location =>
@@ -87,12 +95,12 @@ export function LocationSearch({ value, onChange, placeholder = "Where to?", cla
   }, 300)
 
   useEffect(() => {
-    if (value) {
+    if (value && isOpen) {
       debouncedSearch(value)
-    } else {
+    } else if (!value) {
       setSuggestions([])
     }
-  }, [value])
+  }, [value, isOpen])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -132,13 +140,12 @@ export function LocationSearch({ value, onChange, placeholder = "Where to?", cla
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!isOpen) return
 
+    const allItems = value ? suggestions : [...recentSearches, ...popularDestinations]
+
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault()
-        setActiveIndex(prev => {
-          const total = suggestions.length + (value ? 0 : popularDestinations.length + recentSearches.length)
-          return prev < total - 1 ? prev + 1 : prev
-        })
+        setActiveIndex(prev => prev < allItems.length - 1 ? prev + 1 : prev)
         break
       case 'ArrowUp':
         e.preventDefault()
@@ -146,11 +153,8 @@ export function LocationSearch({ value, onChange, placeholder = "Where to?", cla
         break
       case 'Enter':
         e.preventDefault()
-        if (activeIndex >= 0) {
-          const allItems = value ? suggestions : [...recentSearches, ...popularDestinations]
-          if (allItems[activeIndex]) {
-            handleSuggestionClick(allItems[activeIndex])
-          }
+        if (activeIndex >= 0 && allItems[activeIndex]) {
+          handleSuggestionClick(allItems[activeIndex])
         }
         break
       case 'Escape':
@@ -171,8 +175,8 @@ export function LocationSearch({ value, onChange, placeholder = "Where to?", cla
         transition={{ duration: 0.2, delay: index * 0.02 }}
         onClick={() => handleSuggestionClick(suggestion)}
         className={cn(
-          "w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors",
-          isActive && "bg-gray-50"
+          "w-full px-4 py-3 text-left hover:bg-blue-50 flex items-center space-x-3 transition-colors",
+          isActive && "bg-blue-50"
         )}
       >
         <div className={cn(
@@ -195,7 +199,7 @@ export function LocationSearch({ value, onChange, placeholder = "Where to?", cla
         {suggestion.popularity && (
           <div className="flex items-center text-xs text-gray-500">
             <TrendingUp className="w-3 h-3 mr-1" />
-            {suggestion.popularity}%
+            Popular
           </div>
         )}
       </motion.button>
@@ -204,28 +208,20 @@ export function LocationSearch({ value, onChange, placeholder = "Where to?", cla
 
   return (
     <div className={cn("relative", className)}>
-      <div className="relative">
-        <input
-          ref={inputRef}
-          type="text"
-          value={value}
-          onChange={handleInputChange}
-          onFocus={() => setIsOpen(true)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          className={cn(
-            "w-full pl-10 pr-4 py-3 bg-transparent outline-none",
-            "placeholder:text-gray-500 text-gray-900",
-            className
-          )}
-        />
-        <MapPin className="absolute left-0 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
-        {isLoading && (
-          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-            <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
-          </div>
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={handleInputChange}
+        onFocus={() => setIsOpen(true)}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        className={cn(
+          "w-full bg-transparent outline-none",
+          "placeholder:text-gray-400 text-gray-900",
+          className
         )}
-      </div>
+      />
 
       {/* Suggestions Dropdown */}
       <AnimatePresence>
@@ -238,10 +234,18 @@ export function LocationSearch({ value, onChange, placeholder = "Where to?", cla
             transition={{ duration: 0.2 }}
             className="absolute top-full left-0 right-0 z-50 mt-2 bg-white border border-gray-200 rounded-xl shadow-xl max-h-96 overflow-y-auto"
           >
+            {/* Loading state */}
+            {isLoading && (
+              <div className="px-4 py-8 text-center">
+                <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                <p className="text-sm text-gray-500">Searching...</p>
+              </div>
+            )}
+
             {/* Show search results */}
-            {value && suggestions.length > 0 && (
+            {!isLoading && value && suggestions.length > 0 && (
               <div>
-                <div className="px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <div className="px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
                   Search Results
                 </div>
                 {suggestions.map((suggestion, index) => renderSuggestion(suggestion, index))}
@@ -249,9 +253,9 @@ export function LocationSearch({ value, onChange, placeholder = "Where to?", cla
             )}
 
             {/* Show recent searches when input is empty */}
-            {!value && recentSearches.length > 0 && (
+            {!isLoading && !value && recentSearches.length > 0 && (
               <div>
-                <div className="px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center">
+                <div className="px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center border-b border-gray-100">
                   <Clock className="w-3 h-3 mr-1" />
                   Recent Searches
                 </div>
@@ -260,9 +264,9 @@ export function LocationSearch({ value, onChange, placeholder = "Where to?", cla
             )}
 
             {/* Show popular destinations when input is empty */}
-            {!value && (
+            {!isLoading && !value && (
               <div>
-                <div className="px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center">
+                <div className="px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center border-b border-gray-100">
                   <TrendingUp className="w-3 h-3 mr-1" />
                   Popular Destinations
                 </div>
@@ -273,10 +277,10 @@ export function LocationSearch({ value, onChange, placeholder = "Where to?", cla
             )}
 
             {/* No results */}
-            {value && suggestions.length === 0 && !isLoading && (
+            {!isLoading && value && suggestions.length === 0 && (
               <div className="px-4 py-8 text-center">
                 <Search className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">No destinations found</p>
+                <p className="text-gray-500 font-medium">No destinations found</p>
                 <p className="text-sm text-gray-400 mt-1">Try searching for a city or country</p>
               </div>
             )}
