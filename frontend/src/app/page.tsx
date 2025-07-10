@@ -9,6 +9,7 @@ import { TrustIndicators } from '@/components/home/TrustIndicators'
 import { SearchBarSkeleton } from '@/components/ui/skeletons'
 import { Testimonials } from '@/components/home/Testimonials'
 import { Newsletter } from '@/components/home/Newsletter'
+import { Shield, Star, Clock, ThumbsUp } from 'lucide-react'
 
 export default function HomePage() {
   return (
@@ -23,7 +24,7 @@ export default function HomePage() {
               backgroundImage: `url('https://images.unsplash.com/photo-1564501049412-61c2a3083791?w=1920&h=1080&fit=crop&crop=center')`,
             }}
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/50" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/60" />
         </div>
         
         {/* Hero Content */}
@@ -34,15 +35,31 @@ export default function HomePage() {
             transition={{ duration: 0.8 }}
             className="text-center mb-12"
           >
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-6 text-white">
+            <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-6 text-white drop-shadow-lg">
               Find Your Perfect
-              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">
+              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400 drop-shadow-none">
                 Stay
               </span>
             </h1>
-            <p className="text-xl md:text-2xl text-gray-200 max-w-2xl mx-auto">
+            <p className="text-xl md:text-2xl text-white/95 max-w-2xl mx-auto mb-6 drop-shadow-md">
               Discover amazing hotels, apartments, and unique accommodations around the world
             </p>
+            
+            {/* Trust indicators */}
+            <div className="flex items-center justify-center gap-6 text-white/90 text-sm mb-8">
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4" />
+                <span>Verified Properties</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Star className="w-4 h-4 fill-current" />
+                <span>Best Price Guarantee</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                <span>Free Cancellation</span>
+              </div>
+            </div>
           </motion.div>
           
           <Suspense fallback={<SearchBarSkeleton />}>
@@ -131,8 +148,6 @@ export default function HomePage() {
     </div>
   )
 }
-
-import { Clock, Shield, ThumbsUp } from 'lucide-react'
 
 const features = [
   {
