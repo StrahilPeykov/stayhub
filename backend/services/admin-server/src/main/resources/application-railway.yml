@@ -1,0 +1,132 @@
+# Railway-specific configuration for Spring Boot Admin Server
+spring:
+  boot:
+    admin:
+      ui:
+        public-url: ${PUBLIC_URL:https://admin-server.up.railway.app}
+      
+      # Instance discovery settings for Railway
+      instance-proxy:
+        ignored-headers: 
+          - Cookie
+          - Set-Cookie
+          - Authorization
+        
+      # Notification settings for production
+      notify:
+        mail:
+          enabled: ${ENABLE_EMAIL_NOTIFICATIONS:false}
+          ignore-changes: 
+            - "UP:UP"
+            - "UNKNOWN:UNKNOWN"
+          additional-properties:
+            environment: Railway Production
+            
+  # Security settings
+  security:
+    user:
+      name: ${ADMIN_USERNAME:admin}
+      password: ${ADMIN_PASSWORD}
+      
+  # Mail settings for Railway
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
+
+# Server configuration
+server:
+  port: ${PORT:8090}
+  address: 0.0.0.0
+  compression:
+    enabled: true
+    mime-types: 
+      - text/html
+      - text/xml
+      - text/plain
+      - text/css
+      - text/javascript
+      - application/javascript
+      - application/json
+    min-response-size: 1024
+  
+  # Railway optimizations
+  tomcat:
+    max-threads: 50
+    min-spare-threads: 10
+    accept-count: 100
+    connection-timeout: 20000
+    
+# Management endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      cors:
+        allowed-origins: "*"
+        allowed-methods: "*"
+        allowed-headers: "*"
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+      environment: railway
+      region: ${RAILWAY_REGION:us-west}
+
+# Logging for production
+logging:
+  level:
+    root: INFO
+    de.codecentric.boot.admin: INFO
+    com.stayhub: INFO
+    org.springframework.security: WARN
+    org.springframework.web: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %logger{36} - %msg%n"
+  file:
+    name: /tmp/admin-server.log
+    max-size: 10MB
+    max-history: 3
+
+# Railway-specific info
+info:
+  railway:
+    environment: ${RAILWAY_ENVIRONMENT:production}
+    region: ${RAILWAY_REGION:us-west}
+    replica: ${RAILWAY_REPLICA_ID:1}
+    deployment: ${RAILWAY_DEPLOYMENT_ID:unknown}
+    service: ${RAILWAY_SERVICE_NAME:admin-server}
+    
+# Performance settings
+spring:
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  task:
+    execution:
+      pool:
+        core-size: 2
+        max-size: 10
+        queue-capacity: 50
+    scheduling:
+      pool:
+        size: 2

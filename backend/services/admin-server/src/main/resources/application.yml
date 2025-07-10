@@ -1,0 +1,119 @@
+# Booking Service Configuration for Railway
+spring:
+  application:
+    name: booking-service
+  
+# Spring Boot Admin Client Configuration
+  boot:
+    admin:
+      client:
+        url: ${ADMIN_SERVER_URL:http://localhost:8090/admin}
+        username: ${ADMIN_USERNAME:admin}
+        password: ${ADMIN_PASSWORD:admin123}
+        instance:
+          name: ${spring.application.name}
+          service-base-url: ${SERVICE_BASE_URL:http://localhost:8081}
+          metadata:
+            tags:
+              environment: ${ENVIRONMENT:development}
+              version: ${APP_VERSION:1.0.0}
+              team: backend
+              type: microservice
+          prefer-ip: true
+  
+  datasource:
+    url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:railway}
+    username: ${PGUSER:postgres}
+    password: ${PGPASSWORD:1234}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-test-query: SELECT 1
+      validation-timeout: 5000
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          time_zone: UTC
+        connection:
+          handling_mode: delayed_acquisition_and_release_after_transaction
+  
+  # Cache configuration
+  cache:
+    type: simple
+  
+  # Exclude optional integrations we don't have
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+
+# External service URLs
+services:
+  property:
+    url: ${PROPERTY_SERVICE_URL:http://localhost:8081}
+
+server:
+  port: ${PORT:8082}
+  tomcat:
+    max-threads: 20
+    min-spare-threads: 2
+
+# Management endpoints for Spring Boot Admin
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+    logfile:
+      enabled: true
+    metrics:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  info:
+    env:
+      enabled: true
+    git:
+      enabled: true
+    build:
+      enabled: true
+
+# Application info for Admin dashboard
+info:
+  app:
+    name: ${spring.application.name}
+    description: Property management service for StayHub platform
+    version: ${APP_VERSION:1.0.0}
+    team: Backend Team
+  tags:
+    environment: ${ENVIRONMENT:development}
+    deployed: ${DEPLOYED_AT:unknown}
+
+logging:
+  level:
+    root: INFO
+    com.stayhub: DEBUG
+    org.springframework.boot: INFO
+    com.zaxxer.hikari: INFO
+    org.hibernate.SQL: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: /tmp/booking-service.log
