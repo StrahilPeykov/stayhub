@@ -17,8 +17,9 @@ const authOptions: NextAuthOptions = {
         }
 
         try {
-          // Use the login API route we created
-          const response = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/auth/login`, {
+          // Call user service directly instead of going through our API route
+          const userServiceUrl = process.env.NEXT_PUBLIC_USER_SERVICE_URL || 'http://localhost:8084'
+          const response = await fetch(`${userServiceUrl}/api/users/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -27,9 +28,43 @@ const authOptions: NextAuthOptions = {
             }),
           })
 
-          const data = await response.json()
+          console.log('Login response status:', response.status)
+          console.log('Login response headers:', Object.fromEntries(response.headers.entries()))
 
-          if (response.ok && data) {
+          // Check if response is ok first
+          if (!response.ok) {
+            console.error('Login failed with status:', response.status)
+            
+            // Try to get error message from response
+            const contentType = response.headers.get('content-type')
+            if (contentType && contentType.includes('application/json')) {
+              try {
+                const errorData = await response.json()
+                console.error('Login error data:', errorData)
+              } catch (jsonError) {
+                console.error('Failed to parse error response as JSON:', jsonError)
+              }
+            } else {
+              // Response is not JSON, likely HTML error page
+              const textResponse = await response.text()
+              console.error('Non-JSON error response:', textResponse.substring(0, 200) + '...')
+            }
+            return null
+          }
+
+          // Check if response is JSON before parsing
+          const contentType = response.headers.get('content-type')
+          if (!contentType || !contentType.includes('application/json')) {
+            console.error('Response is not JSON, content-type:', contentType)
+            const textResponse = await response.text()
+            console.error('Response text:', textResponse.substring(0, 200) + '...')
+            return null
+          }
+
+          const data = await response.json()
+          console.log('Login successful, user data:', data)
+
+          if (data && data.id) {
             // Return user object that will be saved in JWT
             return {
               id: data.id,
