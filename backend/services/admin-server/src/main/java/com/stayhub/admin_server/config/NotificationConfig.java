@@ -6,6 +6,7 @@ import de.codecentric.boot.admin.server.domain.events.InstanceEvent;
 import de.codecentric.boot.admin.server.domain.events.InstanceStatusChangedEvent;
 import de.codecentric.boot.admin.server.notify.AbstractEventNotifier;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.mail.MailSender;
@@ -24,6 +25,7 @@ public class NotificationConfig {
     }
 
     @Bean
+    @ConditionalOnProperty(name = "custom.email.notifications.enabled", havingValue = "true", matchIfMissing = false)
     public EmailNotifier emailNotifier(InstanceRepository repository, MailSender mailSender) {
         return new EmailNotifier(repository, mailSender);
     }
