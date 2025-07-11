@@ -45,6 +45,22 @@ spring:
           timeout: 10000
           writetimeout: 10000
 
+  # JSON serialization settings
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+      
+  # Task execution settings
+  task:
+    execution:
+      pool:
+        core-size: 2
+        max-size: 10
+        queue-capacity: 50
+    scheduling:
+      pool:
+        size: 2
+
 # Server configuration
 server:
   port: ${PORT:8090}
@@ -115,18 +131,3 @@ info:
     replica: ${RAILWAY_REPLICA_ID:1}
     deployment: ${RAILWAY_DEPLOYMENT_ID:unknown}
     service: ${RAILWAY_SERVICE_NAME:admin-server}
-    
-# Performance settings
-spring:
-  jackson:
-    serialization:
-      write-dates-as-timestamps: false
-  task:
-    execution:
-      pool:
-        core-size: 2
-        max-size: 10
-        queue-capacity: 50
-    scheduling:
-      pool:
-        size: 2
