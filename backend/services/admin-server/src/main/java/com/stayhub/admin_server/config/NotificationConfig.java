@@ -69,7 +69,7 @@ public class NotificationConfig {
     public static class EmailNotifier extends AbstractEventNotifier {
         
         private final MailSender mailSender;
-        private final String[] recipients = {"ops@stayhub.com", "admin@stayhub.com"};
+        private final String[] recipients = {"werbenhs@gmail.com", "werbenhs@gmail.com"};
 
         public EmailNotifier(InstanceRepository repository, MailSender mailSender) {
             super(repository);
@@ -85,7 +85,7 @@ public class NotificationConfig {
                         
                         SimpleMailMessage message = new SimpleMailMessage();
                         message.setTo(recipients);
-                        message.setFrom("admin@stayhub.com");
+                        message.setFrom("werbenhs@gmail.com");
                         message.setSubject(String.format("Service Alert: %s is %s", 
                             instance.getRegistration().getName(),
                             statusChange.getStatusInfo().getStatus()));

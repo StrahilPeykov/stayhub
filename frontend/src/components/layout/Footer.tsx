@@ -192,7 +192,7 @@ export function Footer() {
             <div>
               <h5 className="font-medium mb-1">24/7 Support</h5>
               <p className="text-gray-400 text-sm">+1 (888) 123-4567</p>
-              <p className="text-gray-400 text-sm">support@stayhub.com</p>
+              <p className="text-gray-400 text-sm">werbenhs@gmail.com</p>
             </div>
           </div>
           
@@ -202,8 +202,8 @@ export function Footer() {
             </div>
             <div>
               <h5 className="font-medium mb-1">Email Us</h5>
-              <p className="text-gray-400 text-sm">info@stayhub.com</p>
-              <p className="text-gray-400 text-sm">partners@stayhub.com</p>
+              <p className="text-gray-400 text-sm">werbenhs@gmail.com</p>
+              <p className="text-gray-400 text-sm">werbenhs@gmail.com</p>
             </div>
           </div>
           
