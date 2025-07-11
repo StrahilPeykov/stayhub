@@ -32,8 +32,8 @@ public class NotificationConfig {
 
         public CustomNotifier(InstanceRepository repository) {
             super(repository);
-            // Set how often reminders should be sent
-            this.setRemindPeriod(Duration.ofMinutes(10));
+            // Note: setRemindPeriod is not available in Spring Boot Admin 3.2.0
+            // Reminders are handled differently in newer versions
         }
 
         @Override
@@ -43,10 +43,9 @@ public class NotificationConfig {
                     InstanceStatusChangedEvent statusChange = (InstanceStatusChangedEvent) event;
                     String status = statusChange.getStatusInfo().getStatus();
                     
-                    log.warn("Instance {} ({}) changed status from {} to {}", 
+                    log.warn("Instance {} ({}) changed status to {}", 
                         instance.getRegistration().getName(),
                         instance.getId(),
-                        statusChange.getStatusInfo().getStatus(),
                         status);
                     
                     // Here you could send notifications to Slack, Teams, etc.
@@ -94,21 +93,24 @@ public class NotificationConfig {
                         message.setText(String.format(
                             "Service: %s\n" +
                             "Instance: %s\n" +
-                            "Status changed from %s to %s\n" +
+                            "Status: %s\n" +
                             "Time: %s\n" +
                             "Service URL: %s\n" +
                             "Health URL: %s",
                             instance.getRegistration().getName(),
                             instance.getId(),
                             statusChange.getStatusInfo().getStatus(),
-                            statusChange.getStatusInfo().getStatus(),
                             event.getTimestamp(),
                             instance.getRegistration().getServiceUrl(),
                             instance.getRegistration().getHealthUrl()
                         ));
                         
-                        mailSender.send(message);
-                        log.info("Email notification sent for instance {}", instance.getId());
+                        if (mailSender != null) {
+                            mailSender.send(message);
+                            log.info("Email notification sent for instance {}", instance.getId());
+                        } else {
+                            log.warn("MailSender is null, email notification not sent");
+                        }
                     } catch (Exception e) {
                         log.error("Failed to send email notification", e);
                     }

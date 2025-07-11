@@ -31,7 +31,8 @@ public class SecurityConfig {
         successHandler.setTargetUrlParameter("redirectTo");
         successHandler.setDefaultTargetUrl(this.adminServer.getContextPath() + "/");
 
-        http.authorizeHttpRequests(authz -> authz
+        http
+            .authorizeHttpRequests(authz -> authz
                 .requestMatchers(this.adminServer.getContextPath() + "/assets/**").permitAll()
                 .requestMatchers(this.adminServer.getContextPath() + "/login").permitAll()
                 .requestMatchers(this.adminServer.getContextPath() + "/actuator/health").permitAll()
@@ -48,8 +49,9 @@ public class SecurityConfig {
             .logout(logout -> logout
                 .logoutUrl(this.adminServer.getContextPath() + "/logout")
             )
-            .httpBasic()
-            .and()
+            .httpBasic(httpBasic -> {
+                // Configure HTTP Basic if needed
+            })
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                 .ignoringRequestMatchers(
