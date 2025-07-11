@@ -33,13 +33,4 @@ public class HealthController {
     public String actuatorHealth() {
         return "{\"status\":\"UP\",\"service\":\"admin-server\"}";
     }
-    
-    @GetMapping("/server-status")
-    public String serverStatus() {
-        if (applicationReady.get()) {
-            return "Admin Server is running and ready!";
-        } else {
-            return "Admin Server is starting...";
-        }
-    }
 }
