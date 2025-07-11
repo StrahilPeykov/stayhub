@@ -34,8 +34,8 @@ public class HealthController {
         return "{\"status\":\"UP\",\"service\":\"admin-server\"}";
     }
     
-    @GetMapping("/")
-    public String root() {
+    @GetMapping("/server-status")
+    public String serverStatus() {
         if (applicationReady.get()) {
             return "Admin Server is running and ready!";
         } else {
