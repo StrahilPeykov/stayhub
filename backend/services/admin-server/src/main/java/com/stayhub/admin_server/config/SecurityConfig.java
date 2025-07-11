@@ -33,13 +33,19 @@ public class SecurityConfig {
 
         http
             .authorizeHttpRequests(authz -> authz
+                // Allow health checks without authentication
+                .requestMatchers("/actuator/health").permitAll()
+                .requestMatchers("/actuator/health/**").permitAll()
+                .requestMatchers("/actuator/info").permitAll()
+                .requestMatchers("/ping").permitAll()
+                .requestMatchers("/health").permitAll()
+                // Admin server assets and login
                 .requestMatchers(this.adminServer.getContextPath() + "/assets/**").permitAll()
                 .requestMatchers(this.adminServer.getContextPath() + "/login").permitAll()
-                .requestMatchers(this.adminServer.getContextPath() + "/actuator/health").permitAll()
-                .requestMatchers(this.adminServer.getContextPath() + "/actuator/health/**").permitAll()
-                .requestMatchers(this.adminServer.getContextPath() + "/actuator/info").permitAll()
+                // Instance registration endpoints (for other services to register)
                 .requestMatchers(this.adminServer.getContextPath() + "/instances").permitAll()
                 .requestMatchers(this.adminServer.getContextPath() + "/instances/**").permitAll()
+                // Everything else requires authentication
                 .anyRequest().authenticated()
             )
             .formLogin(form -> form
@@ -50,14 +56,14 @@ public class SecurityConfig {
                 .logoutUrl(this.adminServer.getContextPath() + "/logout")
             )
             .httpBasic(httpBasic -> {
-                // Configure HTTP Basic if needed
+                // Enable HTTP Basic for API access
             })
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                 .ignoringRequestMatchers(
+                    "/actuator/**",
                     this.adminServer.getContextPath() + "/instances",
-                    this.adminServer.getContextPath() + "/instances/**",
-                    this.adminServer.getContextPath() + "/actuator/**"
+                    this.adminServer.getContextPath() + "/instances/**"
                 )
             );
 
@@ -66,10 +72,13 @@ public class SecurityConfig {
 
     @Bean
     public UserDetailsService userDetailsService() {
+        String adminUsername = System.getenv().getOrDefault("ADMIN_USERNAME", "admin");
+        String adminPassword = System.getenv().getOrDefault("ADMIN_PASSWORD", "admin123");
+        
         return new InMemoryUserDetailsManager(
             User.builder()
-                .username("admin")
-                .password(passwordEncoder().encode("admin123"))
+                .username(adminUsername)
+                .password(passwordEncoder().encode(adminPassword))
                 .roles("ADMIN")
                 .build(),
             User.builder()
