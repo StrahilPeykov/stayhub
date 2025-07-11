@@ -23,6 +23,7 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <spring-boot-admin.version>3.2.0</spring-boot-admin.version>
+        <git-commit-id-plugin.version>4.9.10</git-commit-id-plugin.version>
     </properties>
     
     <dependencies>
@@ -117,8 +118,10 @@
             <plugin>
                 <groupId>pl.project13.maven</groupId>
                 <artifactId>git-commit-id-plugin</artifactId>
+                <version>${git-commit-id-plugin.version}</version>
                 <configuration>
                     <offline>true</offline>
+                    <failOnNoGitDirectory>false</failOnNoGitDirectory>
                 </configuration>
             </plugin>
         </plugins>
