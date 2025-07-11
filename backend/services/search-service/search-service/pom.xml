@@ -38,6 +38,12 @@
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
 
+		<dependency>
+			<groupId>de.codecentric</groupId>
+			<artifactId>spring-boot-admin-starter-client</artifactId>
+			<version>3.2.0</version>
+		</dependency>
+
 		<!-- Optional dependencies -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

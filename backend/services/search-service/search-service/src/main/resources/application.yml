@@ -3,17 +3,34 @@ spring:
   application:
     name: search-service
   
+  # Spring Boot Admin Client Configuration
+  boot:
+    admin:
+      client:
+        url: ${ADMIN_SERVER_URL:http://localhost:8090}
+        username: ${ADMIN_USERNAME:admin}
+        password: ${ADMIN_PASSWORD:admin123}
+        instance:
+          service-url: ${SERVICE_URL:http://localhost:8083}
+          management-url: ${SERVICE_URL:http://localhost:8083}/actuator
+          health-url: ${SERVICE_URL:http://localhost:8083}/actuator/health
+          metadata:
+            tags:
+              environment: ${SPRING_PROFILES_ACTIVE:development}
+              version: 1.0.0
+              team: backend
+  
   datasource:
     url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:railway}
     username: ${PGUSER:postgres}
     password: ${PGPASSWORD:1234}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 3  # Reduced for Railway limits
+      maximum-pool-size: 3
       minimum-idle: 1
       connection-timeout: 30000
-      idle-timeout: 300000   # Reduced
-      max-lifetime: 900000   # Reduced
+      idle-timeout: 300000
+      max-lifetime: 900000
       connection-test-query: SELECT 1
       validation-timeout: 5000
       leak-detection-threshold: 60000
@@ -58,7 +75,6 @@ server:
     min-spare-threads: 2
     accept-count: 50
     connection-timeout: 20000
-  # Railway-specific configurations
   address: 0.0.0.0
   compression:
     enabled: true
@@ -70,7 +86,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: "*"
       cors:
         allowed-origins: "*"
         allowed-methods: "*"
@@ -80,13 +96,25 @@ management:
       show-details: always
       probes:
         enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+      environment: ${SPRING_PROFILES_ACTIVE:development}
+
+# External service URLs
+services:
+  property:
+    url: ${PROPERTY_SERVICE_URL:http://localhost:8081}
 
 logging:
   level:
     root: INFO
     com.stayhub: INFO
     org.springframework.boot: INFO
-    org.springframework.web.cors: DEBUG  # Enable CORS debugging
+    org.springframework.web.cors: DEBUG
     com.zaxxer.hikari: WARN
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

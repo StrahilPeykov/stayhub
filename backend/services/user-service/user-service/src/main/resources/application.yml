@@ -3,6 +3,23 @@ spring:
   application:
     name: user-service
   
+  # Spring Boot Admin Client Configuration
+  boot:
+    admin:
+      client:
+        url: ${ADMIN_SERVER_URL:http://localhost:8090}
+        username: ${ADMIN_USERNAME:admin}
+        password: ${ADMIN_PASSWORD:admin123}
+        instance:
+          service-url: ${SERVICE_URL:http://localhost:8084}
+          management-url: ${SERVICE_URL:http://localhost:8084}/actuator
+          health-url: ${SERVICE_URL:http://localhost:8084}/actuator/health
+          metadata:
+            tags:
+              environment: ${SPRING_PROFILES_ACTIVE:development}
+              version: 1.0.0
+              team: backend
+  
   # Disable ALL auto-configurations that could cause issues
   autoconfigure:
     exclude:
@@ -41,7 +58,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: "*"
       cors:
         allowed-origins: "*"
         allowed-methods: "*"
@@ -49,6 +66,15 @@ management:
   endpoint:
     health:
       show-details: always
+      probes:
+        enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+      environment: ${SPRING_PROFILES_ACTIVE:development}
 
 # Logging configuration
 logging:
