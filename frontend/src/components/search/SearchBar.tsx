@@ -36,14 +36,14 @@ export function SearchBar({
   const [suggestions, setSuggestions] = useState<any[]>([])
   const searchRef = useRef<HTMLDivElement>(null)
   
-  // Search state
+  // Search state with proper defaults
   const [searchRequest, setSearchRequest] = useState<PropertySearchRequest>({
     search: defaultValues?.search || '',
     city: defaultValues?.city || '',
     checkIn: defaultValues?.checkIn || '',
     checkOut: defaultValues?.checkOut || '',
-    guests: defaultValues?.guests || 2,
-    rooms: defaultValues?.rooms || 1,
+    guests: defaultValues?.guests ?? 2, // Use nullish coalescing to provide default
+    rooms: defaultValues?.rooms ?? 1,   // Use nullish coalescing to provide default
     ...defaultValues
   })
 
@@ -186,7 +186,7 @@ export function SearchBar({
   }
 
   const isValid = searchRequest.search || searchRequest.city
-  const hasContent = searchRequest.search || searchRequest.checkIn || searchRequest.guests > 2
+  const hasContent = searchRequest.search || searchRequest.checkIn || (searchRequest.guests ?? 0) > 2
 
   if (compact) {
     return (
@@ -357,14 +357,14 @@ export function SearchBar({
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium text-gray-600 mb-0.5">Who</div>
                     <div className="text-sm text-gray-900">
-                      {searchRequest.guests} guest{searchRequest.guests !== 1 ? 's' : ''}, {searchRequest.rooms} room{searchRequest.rooms !== 1 ? 's' : ''}
+                      {searchRequest.guests ?? 2} guest{(searchRequest.guests ?? 2) !== 1 ? 's' : ''}, {searchRequest.rooms ?? 1} room{(searchRequest.rooms ?? 1) !== 1 ? 's' : ''}
                     </div>
                   </div>
                   <GuestSelector
-                    guests={searchRequest.guests || 2}
-                    rooms={searchRequest.rooms || 1}
-                    onGuestsChange={(guests) => handleGuestChange(guests, searchRequest.rooms || 1)}
-                    onRoomsChange={(rooms) => handleGuestChange(searchRequest.guests || 2, rooms)}
+                    guests={searchRequest.guests ?? 2}
+                    rooms={searchRequest.rooms ?? 1}
+                    onGuestsChange={(guests) => handleGuestChange(guests, searchRequest.rooms ?? 1)}
+                    onRoomsChange={(rooms) => handleGuestChange(searchRequest.guests ?? 2, rooms)}
                     className="absolute inset-0 opacity-0 cursor-pointer"
                   />
                 </div>

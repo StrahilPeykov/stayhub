@@ -81,6 +81,11 @@ export interface PropertySuggestion {
   country?: string;
 }
 
+// Response type from search service
+interface SearchSuggestionsResponse {
+  suggestions: PropertySuggestion[];
+}
+
 export const propertyService = {
   /**
    * Advanced property search with comprehensive filtering
@@ -176,7 +181,7 @@ export const propertyService = {
   async getSearchSuggestions(query: string, limit: number = 10): Promise<PropertySuggestion[]> {
     const response = await handleApiResponse(
       searchApi.get('/api/search/suggestions', { params: { query, limit } })
-    );
+    ) as SearchSuggestionsResponse;
     return response.suggestions || [];
   },
 

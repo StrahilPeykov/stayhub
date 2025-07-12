@@ -42,18 +42,18 @@ export function usePropertySearch(options: UsePropertySearchOptions = {}) {
     }
   })
 
-  // Search query
+  // Search query with proper type assertion for response
   const {
     data: searchResponse,
     isLoading,
     error,
     refetch,
     isFetching
-  } = useQuery<PropertySearchResponse>({
+  } = useQuery({
     queryKey: ['property-search', searchRequest],
     queryFn: () => propertyService.searchProperties(searchRequest),
     enabled: autoSearch && isValidSearchRequest(searchRequest),
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData, // Updated from keepPreviousData
     staleTime: 30 * 1000, // 30 seconds
   })
 
@@ -152,7 +152,7 @@ export function usePropertySearch(options: UsePropertySearchOptions = {}) {
   // Prefetch next page
   const prefetchNextPage = useCallback(() => {
     if (searchResponse?.pagination?.hasNext) {
-      const nextPageRequest = { ...searchRequest, page: searchRequest.page! + 1 }
+      const nextPageRequest = { ...searchRequest, page: (searchRequest.page ?? 0) + 1 }
       queryClient.prefetchQuery({
         queryKey: ['property-search', nextPageRequest],
         queryFn: () => propertyService.searchProperties(nextPageRequest),
@@ -254,7 +254,7 @@ export function usePropertyFacets() {
     queryKey: ['property-facets'],
     queryFn: () => propertyService.getPropertyFacets(),
     staleTime: 5 * 60 * 1000, // 5 minutes
-    cacheTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes (updated from cacheTime)
   })
 }
 
@@ -265,7 +265,7 @@ export function useSearchSuggestions(query: string, enabled = true) {
     queryFn: () => propertyService.getSearchSuggestions(query),
     enabled: enabled && query.length >= 2,
     staleTime: 60 * 1000, // 1 minute
-    cacheTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 5 * 60 * 1000, // 5 minutes (updated from cacheTime)
   })
 }
 
@@ -275,6 +275,6 @@ export function usePopularSearches() {
     queryKey: ['popular-searches'],
     queryFn: () => propertyService.getPopularSearches(),
     staleTime: 30 * 60 * 1000, // 30 minutes
-    cacheTime: 60 * 60 * 1000, // 1 hour
+    gcTime: 60 * 60 * 1000, // 1 hour (updated from cacheTime)
   })
 }
