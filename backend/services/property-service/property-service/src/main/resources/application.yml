@@ -257,6 +257,15 @@ spring:
   config:
     activate:
       on-profile: production,railway
+  datasource:
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+
+server:
+  tomcat:
+    max-threads: 100
+    max-connections: 500
 
 stayhub:
   search:
@@ -271,17 +280,6 @@ stayhub:
       max-concurrent-searches: 200
       enable-result-streaming: true
 
-server:
-  tomcat:
-    max-threads: 100
-    max-connections: 500
-
-spring:
-  datasource:
-    hikari:
-      maximum-pool-size: 10
-      minimum-idle: 5
-
 logging:
   level:
     root: WARN
@@ -294,15 +292,6 @@ spring:
   config:
     activate:
       on-profile: test
-
-stayhub:
-  search:
-    default-page-size: 5
-    max-page-size: 20
-    enable-search-analytics: false
-    cache-timeout-minutes: 0 # No cache for testing
-
-spring:
   datasource:
     url: jdbc:h2:mem:testdb
     driver-class-name: org.h2.Driver
@@ -312,6 +301,13 @@ spring:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
       ddl-auto: create-drop
+
+stayhub:
+  search:
+    default-page-size: 5
+    max-page-size: 20
+    enable-search-analytics: false
+    cache-timeout-minutes: 0 # No cache for testing
 
 logging:
   level:
