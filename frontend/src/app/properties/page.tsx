@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
@@ -25,7 +25,7 @@ const sortOptions = [
   { id: 'popularity', label: 'Popularity' },
 ]
 
-export default function PropertiesPage() {
+function PropertiesContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { track } = useAnalytics()
@@ -63,7 +63,6 @@ export default function PropertiesPage() {
     queryKey: ['property-search', searchRequest],
     queryFn: () => propertyService.searchProperties(searchRequest),
     placeholderData: (previousData) => previousData,
-    staleTime: 30 * 1000, // 30 seconds
   })
 
   // Update URL when search request changes
@@ -562,6 +561,18 @@ export default function PropertiesPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function PropertiesPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    }>
+      <PropertiesContent />
+    </Suspense>
   )
 }
 

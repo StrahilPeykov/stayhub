@@ -123,32 +123,36 @@ public class PropertySearchSpecification {
         predicates.add(cb.or(textPredicates.toArray(new Predicate[0])));
     }
     
+    /**
+     * Fixed radius search predicate using bounding box approach
+     * This avoids the Jakarta Persistence Expression<T> type issues
+     */
     private static void addRadiusSearchPredicate(List<Predicate> predicates, Root<Property> root,
                                                CriteriaBuilder cb, Double lat, Double lon, Double radius) {
-        // Haversine formula using database functions
-        // Note: This is PostgreSQL specific. For other databases, you might need to adjust
         
-        Expression<Double> latRadians = cb.function("RADIANS", Double.class, cb.literal(lat));
-        Expression<Double> lonRadians = cb.function("RADIANS", Double.class, cb.literal(lon));
-        Expression<Double> propLatRadians = cb.function("RADIANS", Double.class, root.get("latitude"));
-        Expression<Double> propLonRadians = cb.function("RADIANS", Double.class, root.get("longitude"));
+        // Add null checks first
+        predicates.add(cb.isNotNull(root.get("latitude")));
+        predicates.add(cb.isNotNull(root.get("longitude")));
         
-        // cos(lat1) * cos(lat2) * cos(lon2 - lon1) + sin(lat1) * sin(lat2)
-        Expression<Double> cosLat1 = cb.function("COS", Double.class, latRadians);
-        Expression<Double> cosLat2 = cb.function("COS", Double.class, propLatRadians);
-        Expression<Double> sinLat1 = cb.function("SIN", Double.class, latRadians);
-        Expression<Double> sinLat2 = cb.function("SIN", Double.class, propLatRadians);
-        Expression<Double> cosLonDiff = cb.function("COS", Double.class, 
-            cb.diff(propLonRadians, lonRadians));
+        // Calculate approximate bounding box (fast and avoids complex function expressions)
+        // This is an approximation but avoids the Expression<T> type issues
+        double latDelta = radius / 111.0; // 1 degree latitude ≈ 111 km
+        double lonDelta = radius / (111.0 * Math.cos(Math.toRadians(lat))); // adjust for longitude
         
-        Expression<Double> cosProduct = cb.prod(cb.prod(cosLat1, cosLat2), cosLonDiff);
-        Expression<Double> sinProduct = cb.prod(sinLat1, sinLat2);
-        Expression<Double> sum = cb.sum(cosProduct, sinProduct);
+        double minLat = lat - latDelta;
+        double maxLat = lat + latDelta;
+        double minLon = lon - lonDelta;
+        double maxLon = lon + lonDelta;
         
-        Expression<Double> acos = cb.function("ACOS", Double.class, sum);
-        Expression<Double> distance = cb.prod(cb.literal(6371.0), acos); // Earth radius in km
+        // Create simple bounding box predicates
+        predicates.add(cb.between(root.get("latitude"), minLat, maxLat));
+        predicates.add(cb.between(root.get("longitude"), minLon, maxLon));
         
-        predicates.add(cb.lessThanOrEqualTo(distance, radius));
+        // Note: This is an approximation using a bounding box instead of exact circular distance.
+        // For exact Haversine distance calculation, we would typically use:
+        // 1. A native query with database-specific functions (PostGIS for PostgreSQL)
+        // 2. Filter results in memory after retrieval
+        // 3. Use a spatial database extension
     }
     
     private static void addAmenitiesFilter(List<Predicate> predicates, Root<Property> root,
@@ -211,31 +215,17 @@ public class PropertySearchSpecification {
                 return criteriaBuilder.conjunction();
             }
             
-            // PostgreSQL full-text search using to_tsvector and plainto_tsquery
-            // This requires proper text search configuration in PostgreSQL
-            String searchQuery = searchText.trim().replaceAll("\\s+", " & ");
+            // For databases that support full-text search, you can implement this
+            // For now, we'll use the basic text search approach
+            String searchPattern = "%" + searchText.toLowerCase() + "%";
             
-            Expression<Boolean> fullTextSearch = criteriaBuilder.function(
-                "to_tsvector",
-                Boolean.class,
-                criteriaBuilder.literal("english"),
-                criteriaBuilder.concat(
-                    criteriaBuilder.concat(
-                        criteriaBuilder.concat(root.get("name"), " "),
-                        root.get("description")
-                    ),
-                    criteriaBuilder.concat(" ", root.get("city"))
-                )
-            );
+            List<Predicate> textPredicates = new ArrayList<>();
+            textPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), searchPattern));
+            textPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("description")), searchPattern));
+            textPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("city")), searchPattern));
+            textPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("country")), searchPattern));
             
-            Expression<Boolean> searchVector = criteriaBuilder.function(
-                "plainto_tsquery",
-                Boolean.class,
-                criteriaBuilder.literal("english"),
-                criteriaBuilder.literal(searchQuery)
-            );
-            
-            return criteriaBuilder.function("@@", Boolean.class, fullTextSearch, searchVector);
+            return criteriaBuilder.or(textPredicates.toArray(new Predicate[0]));
         };
     }
     
@@ -244,16 +234,94 @@ public class PropertySearchSpecification {
      */
     public static Specification<Property> withPopularityScore() {
         return (root, query, criteriaBuilder) -> {
-            // Calculate popularity score based on rating, review count, and recent bookings
+            // Calculate popularity score based on rating, review count, and featured status
             // This is a simplified version - in reality, you'd have more complex scoring
             
-            Expression<Double> ratingScore = criteriaBuilder.coalesce(root.get("rating"), 0.0);
-            Expression<Double> reviewScore = criteriaBuilder.sqrt(
-                criteriaBuilder.coalesce(root.get("reviewCount"), 0)
-            );
+            // For now, just ensure properties have ratings and reviews
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(criteriaBuilder.isNotNull(root.get("rating")));
+            predicates.add(criteriaBuilder.greaterThan(root.get("reviewCount"), 0));
             
-            // Add ordering by popularity score in the calling method
-            return criteriaBuilder.conjunction();
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
+    }
+    
+    /**
+     * Build specification for properties within a specific price range
+     */
+    public static Specification<Property> withPriceRange(BigDecimal minPrice, BigDecimal maxPrice) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            
+            if (minPrice != null) {
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("basePrice"), minPrice));
+            }
+            
+            if (maxPrice != null) {
+                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("basePrice"), maxPrice));
+            }
+            
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
+    }
+    
+    /**
+     * Build specification for properties with specific amenities
+     */
+    public static Specification<Property> withAmenities(List<String> amenities, boolean requireAll) {
+        return (root, query, criteriaBuilder) -> {
+            if (amenities == null || amenities.isEmpty()) {
+                return criteriaBuilder.conjunction();
+            }
+            
+            Join<Property, String> amenitiesJoin = root.join("amenities", JoinType.INNER);
+            
+            if (requireAll) {
+                // Property must have ALL specified amenities
+                Subquery<Long> amenitySubquery = query.subquery(Long.class);
+                Root<Property> subRoot = amenitySubquery.from(Property.class);
+                Join<Property, String> subAmenitiesJoin = subRoot.join("amenities", JoinType.INNER);
+                
+                amenitySubquery.select(criteriaBuilder.count(subAmenitiesJoin))
+                    .where(
+                        criteriaBuilder.equal(subRoot.get("id"), root.get("id")),
+                        subAmenitiesJoin.in(amenities)
+                    );
+                
+                return criteriaBuilder.equal(amenitySubquery, (long) amenities.size());
+            } else {
+                // Property must have ANY of the specified amenities
+                return amenitiesJoin.in(amenities);
+            }
+        };
+    }
+    
+    /**
+     * Build specification for properties of specific types
+     */
+    public static Specification<Property> withPropertyTypes(List<String> propertyTypes) {
+        return (root, query, criteriaBuilder) -> {
+            if (propertyTypes == null || propertyTypes.isEmpty()) {
+                return criteriaBuilder.conjunction();
+            }
+            
+            List<Property.PropertyType> validTypes = propertyTypes.stream()
+                .map(type -> {
+                    try {
+                        return Property.PropertyType.valueOf(type.toUpperCase());
+                    } catch (IllegalArgumentException e) {
+                        log.warn("Invalid property type: {}", type);
+                        return null;
+                    }
+                })
+                .filter(type -> type != null)
+                .toList();
+            
+            if (validTypes.isEmpty()) {
+                return criteriaBuilder.conjunction();
+            }
+            
+            return root.get("propertyType").in(validTypes);
         };
     }
 }
