@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { Map, List, Filter, Search, Star } from 'lucide-react'
-import { propertyService } from '@/services/propertyService'
+import { Map, List, Filter, Search, Star, Loader2, X } from 'lucide-react'
+import { propertyService, PropertySearchRequest, PropertySearchResponse } from '@/services/propertyService'
 import { PropertyCard } from '@/components/property/PropertyCard'
 import { SearchBar } from '@/components/search/SearchBar'
 import { Button } from '@/components/ui/button'
@@ -12,95 +13,152 @@ import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
-import { cn } from '@/lib/utils'
-
-const propertyTypes = [
-  { id: 'hotel', label: 'Hotels', count: 245 },
-  { id: 'apartment', label: 'Apartments', count: 189 },
-  { id: 'villa', label: 'Villas', count: 76 },
-  { id: 'resort', label: 'Resorts', count: 134 },
-  { id: 'hostel', label: 'Hostels', count: 45 },
-  { id: 'guesthouse', label: 'Guest Houses', count: 67 },
-]
-
-const amenityOptions = [
-  { id: 'WiFi', label: 'Free WiFi', count: 512 },
-  { id: 'Parking', label: 'Free Parking', count: 387 },
-  { id: 'Pool', label: 'Swimming Pool', count: 298 },
-  { id: 'Gym', label: 'Fitness Center', count: 234 },
-  { id: 'Spa', label: 'Spa & Wellness', count: 167 },
-  { id: 'Restaurant', label: 'Restaurant', count: 456 },
-  { id: 'Airport Shuttle', label: 'Airport Shuttle', count: 189 },
-  { id: 'Pet Friendly', label: 'Pet Friendly', count: 123 },
-]
+import { useAnalytics } from '@/lib/hooks/useAnalytics'
+import { cn, debounce } from '@/lib/utils'
 
 const sortOptions = [
-  { id: 'recommended', label: 'Recommended' },
-  { id: 'price-low', label: 'Price: Low to High' },
-  { id: 'price-high', label: 'Price: High to Low' },
+  { id: 'name', label: 'Name (A-Z)' },
+  { id: 'price', label: 'Price: Low to High' },
+  { id: 'price_desc', label: 'Price: High to Low' },
   { id: 'rating', label: 'Guest Rating' },
-  { id: 'newest', label: 'Newest First' },
+  { id: 'distance', label: 'Distance' },
+  { id: 'popularity', label: 'Popularity' },
 ]
 
 export default function PropertiesPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { track } = useAnalytics()
+  
+  // UI State
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
-  const [sortBy, setSortBy] = useState('recommended')
-  const [searchTerm, setSearchTerm] = useState('')
-  const [priceRange, setPriceRange] = useState([0, 1000])
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([])
-  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([])
-  const [selectedRating, setSelectedRating] = useState<number | null>(null)
-
-  const { data: properties, isLoading, error } = useQuery({
-    queryKey: ['properties', 'all'],
-    queryFn: () => propertyService.getProperties(),
+  
+  // Parse initial search parameters from URL
+  const [searchRequest, setSearchRequest] = useState<PropertySearchRequest>(() => {
+    const parsed = propertyService.parseSearchParams(searchParams)
+    return {
+      page: 0,
+      size: 20,
+      sortBy: 'name',
+      sortDirection: 'asc',
+      ...parsed
+    }
   })
 
-  // Filter properties based on selected criteria
-  const filteredProperties = (properties || []).filter(property => {
-    if (searchTerm && !property.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !property.address.city.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false
-    }
-    
-    if (property.basePrice < priceRange[0] || property.basePrice > priceRange[1]) {
-      return false
-    }
-    
-    if (selectedRating && property.rating && property.rating < selectedRating) {
-      return false
-    }
-    
-    return true
+  // Facets for filter options
+  const { data: facets } = useQuery({
+    queryKey: ['property-facets'],
+    queryFn: () => propertyService.getPropertyFacets(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
   })
 
-  const togglePropertyType = (typeId: string) => {
-    setSelectedTypes(prev =>
-      prev.includes(typeId)
-        ? prev.filter(id => id !== typeId)
-        : [...prev, typeId]
-    )
+  // Main search query
+  const { 
+    data: searchResponse, 
+    isLoading, 
+    error,
+    refetch
+  } = useQuery<PropertySearchResponse>({
+    queryKey: ['property-search', searchRequest],
+    queryFn: () => propertyService.searchProperties(searchRequest),
+    keepPreviousData: true,
+  })
+
+  // Update URL when search request changes
+  useEffect(() => {
+    const url = propertyService.buildSearchUrl(searchRequest)
+    router.push(url, { scroll: false })
+  }, [searchRequest, router])
+
+  // Track search events
+  useEffect(() => {
+    if (searchResponse) {
+      track('property_search', {
+        query: searchRequest.search,
+        filters: searchRequest,
+        results_count: searchResponse.metadata.resultsCount,
+        search_time_ms: searchResponse.metadata.searchTimeMs,
+      })
+    }
+  }, [searchResponse, searchRequest, track])
+
+  // Debounced search update function
+  const updateSearch = useCallback(
+    debounce((updates: Partial<PropertySearchRequest>) => {
+      setSearchRequest(prev => ({
+        ...prev,
+        ...updates,
+        page: 0, // Reset to first page when filters change
+      }))
+    }, 300),
+    []
+  )
+
+  // Filter handlers
+  const handleSearchChange = (search: string) => {
+    updateSearch({ search })
   }
 
-  const toggleAmenity = (amenityId: string) => {
-    setSelectedAmenities(prev =>
-      prev.includes(amenityId)
-        ? prev.filter(id => id !== amenityId)
-        : [...prev, amenityId]
-    )
+  const handlePriceRangeChange = (range: number[]) => {
+    updateSearch({ 
+      minPrice: range[0] > 0 ? range[0] : undefined,
+      maxPrice: range[1] < 1000 ? range[1] : undefined
+    })
   }
 
-  const clearFilters = () => {
-    setPriceRange([0, 1000])
-    setSelectedTypes([])
-    setSelectedAmenities([])
-    setSelectedRating(null)
-    setSearchTerm('')
+  const handleAmenityToggle = (amenity: string) => {
+    const currentAmenities = searchRequest.amenities || []
+    const newAmenities = currentAmenities.includes(amenity)
+      ? currentAmenities.filter(a => a !== amenity)
+      : [...currentAmenities, amenity]
+    
+    updateSearch({ amenities: newAmenities.length > 0 ? newAmenities : undefined })
   }
 
-  const activeFiltersCount = selectedTypes.length + selectedAmenities.length + 
-    (selectedRating ? 1 : 0) + (priceRange[0] > 0 || priceRange[1] < 1000 ? 1 : 0)
+  const handlePropertyTypeToggle = (type: string) => {
+    const currentTypes = searchRequest.propertyTypes || []
+    const newTypes = currentTypes.includes(type)
+      ? currentTypes.filter(t => t !== type)
+      : [...currentTypes, type]
+    
+    updateSearch({ propertyTypes: newTypes.length > 0 ? newTypes : undefined })
+  }
+
+  const handleRatingChange = (rating: number | null) => {
+    updateSearch({ minRating: rating || undefined })
+  }
+
+  const handleSortChange = (sortBy: string) => {
+    const [field, direction] = sortBy.includes('_desc') 
+      ? [sortBy.replace('_desc', ''), 'desc']
+      : [sortBy, 'asc']
+    
+    updateSearch({ sortBy: field, sortDirection: direction })
+  }
+
+  const handlePageChange = (page: number) => {
+    setSearchRequest(prev => ({ ...prev, page }))
+  }
+
+  const clearAllFilters = () => {
+    setSearchRequest({
+      page: 0,
+      size: 20,
+      sortBy: 'name',
+      sortDirection: 'asc',
+    })
+  }
+
+  // Count active filters
+  const activeFiltersCount = Object.entries(searchRequest).filter(([key, value]) => {
+    if (['page', 'size', 'sortBy', 'sortDirection'].includes(key)) return false
+    return value !== undefined && value !== null && value !== ''
+  }).length
+
+  const properties = searchResponse?.properties || []
+  const pagination = searchResponse?.pagination
+  const metadata = searchResponse?.metadata
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -145,11 +203,14 @@ export default function PropertiesPage() {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              All Properties
+              {metadata?.query ? `Search Results for "${metadata.query}"` : 'All Properties'}
             </h2>
-            <p className="text-gray-600">
-              {filteredProperties.length} properties found
-            </p>
+            <div className="flex items-center gap-4 text-gray-600">
+              <span>{metadata?.resultsCount || 0} properties found</span>
+              {metadata?.searchTimeMs && (
+                <span className="text-sm">({metadata.searchTimeMs}ms)</span>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -179,8 +240,8 @@ export default function PropertiesPage() {
 
             {/* Sort Dropdown */}
             <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
+              value={`${searchRequest.sortBy}${searchRequest.sortDirection === 'desc' ? '_desc' : ''}`}
+              onChange={(e) => handleSortChange(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {sortOptions.map(option => (
@@ -207,6 +268,37 @@ export default function PropertiesPage() {
           </div>
         </div>
 
+        {/* Active Filters */}
+        {activeFiltersCount > 0 && (
+          <div className="mb-6 p-4 bg-white rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-medium text-gray-900">Active Filters</h3>
+              <button
+                onClick={clearAllFilters}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                Clear all
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(metadata?.appliedFilters || {}).map(([key, value]) => (
+                <span
+                  key={key}
+                  className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                >
+                  {key}: {Array.isArray(value) ? value.join(', ') : value.toString()}
+                  <button
+                    onClick={() => updateSearch({ [key]: undefined })}
+                    className="hover:text-blue-900"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-8">
           {/* Filters Sidebar */}
           {showFilters && (
@@ -220,7 +312,7 @@ export default function PropertiesPage() {
                   <h3 className="text-lg font-semibold">Filters</h3>
                   {activeFiltersCount > 0 && (
                     <button
-                      onClick={clearFilters}
+                      onClick={clearAllFilters}
                       className="text-sm text-blue-600 hover:underline"
                     >
                       Clear all
@@ -239,8 +331,8 @@ export default function PropertiesPage() {
                       <Input
                         type="text"
                         placeholder="Property name or city..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        value={searchRequest.search || ''}
+                        onChange={(e) => handleSearchChange(e.target.value)}
                         className="pl-10"
                       />
                     </div>
@@ -253,16 +345,16 @@ export default function PropertiesPage() {
                     </label>
                     <div className="px-2">
                       <Slider
-                        value={priceRange}
-                        onValueChange={setPriceRange}
+                        value={[searchRequest.minPrice || 0, searchRequest.maxPrice || 1000]}
+                        onValueChange={handlePriceRangeChange}
                         min={0}
                         max={1000}
                         step={10}
                         className="mb-4"
                       />
                       <div className="flex items-center justify-between text-sm text-gray-600">
-                        <span>${priceRange[0]}</span>
-                        <span>${priceRange[1]}+</span>
+                        <span>${searchRequest.minPrice || 0}</span>
+                        <span>${searchRequest.maxPrice || 1000}+</span>
                       </div>
                     </div>
                   </div>
@@ -281,9 +373,9 @@ export default function PropertiesPage() {
                           <input
                             type="radio"
                             name="rating"
-                            checked={selectedRating === rating}
-                            onChange={() => setSelectedRating(
-                              selectedRating === rating ? null : rating
+                            checked={searchRequest.minRating === rating}
+                            onChange={() => handleRatingChange(
+                              searchRequest.minRating === rating ? null : rating
                             )}
                             className="w-4 h-4 text-blue-600"
                           />
@@ -307,52 +399,54 @@ export default function PropertiesPage() {
                   </div>
 
                   {/* Property Type */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-4">
-                      Property Type
-                    </label>
-                    <div className="space-y-2">
-                      {propertyTypes.map((type) => (
-                        <label
-                          key={type.id}
-                          className="flex items-center justify-between cursor-pointer"
-                        >
-                          <div className="flex items-center gap-3">
-                            <Checkbox
-                              checked={selectedTypes.includes(type.id)}
-                              onCheckedChange={() => togglePropertyType(type.id)}
-                            />
-                            <span className="text-sm">{type.label}</span>
-                          </div>
-                          <span className="text-xs text-gray-500">({type.count})</span>
-                        </label>
-                      ))}
+                  {facets?.propertyTypes && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-4">
+                        Property Type
+                      </label>
+                      <div className="space-y-2">
+                        {facets.propertyTypes.map((type) => (
+                          <label
+                            key={type}
+                            className="flex items-center justify-between cursor-pointer"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Checkbox
+                                checked={searchRequest.propertyTypes?.includes(type) || false}
+                                onCheckedChange={() => handlePropertyTypeToggle(type)}
+                              />
+                              <span className="text-sm capitalize">{type}</span>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Amenities */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-4">
-                      Amenities
-                    </label>
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {amenityOptions.map((amenity) => (
-                        <label
-                          key={amenity.id}
-                          className="flex items-center justify-between cursor-pointer"
-                        >
-                          <div className="flex items-center gap-3">
-                            <Checkbox
-                              checked={selectedAmenities.includes(amenity.id)}
-                              onCheckedChange={() => toggleAmenity(amenity.id)}
-                            />
-                            <span className="text-sm">{amenity.label}</span>
-                          </div>
-                          <span className="text-xs text-gray-500">({amenity.count})</span>
-                        </label>
-                      ))}
+                  {facets?.amenities && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-4">
+                        Amenities
+                      </label>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {facets.amenities.map((amenity) => (
+                          <label
+                            key={amenity}
+                            className="flex items-center justify-between cursor-pointer"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Checkbox
+                                checked={searchRequest.amenities?.includes(amenity) || false}
+                                onCheckedChange={() => handleAmenityToggle(amenity)}
+                              />
+                              <span className="text-sm">{amenity}</span>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </motion.aside>
@@ -362,7 +456,8 @@ export default function PropertiesPage() {
           <div className="flex-1">
             {error ? (
               <div className="text-center py-12">
-                <p className="text-red-600">Error loading properties. Please try again.</p>
+                <p className="text-red-600 mb-4">Error loading properties. Please try again.</p>
+                <Button onClick={() => refetch()}>Retry</Button>
               </div>
             ) : isLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -378,23 +473,64 @@ export default function PropertiesPage() {
                   <p className="text-gray-400 text-sm">Switch to list view to browse properties</p>
                 </div>
               </div>
-            ) : filteredProperties.length > 0 ? (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-              >
-                {filteredProperties.map((property, index) => (
-                  <motion.div
-                    key={property.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: index * 0.05 }}
-                  >
-                    <PropertyCard property={property} />
-                  </motion.div>
-                ))}
-              </motion.div>
+            ) : properties.length > 0 ? (
+              <div className="space-y-6">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                >
+                  {properties.map((property, index) => (
+                    <motion.div
+                      key={property.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, delay: index * 0.05 }}
+                    >
+                      <PropertyCard property={property} />
+                    </motion.div>
+                  ))}
+                </motion.div>
+
+                {/* Pagination */}
+                {pagination && pagination.totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 mt-8">
+                    <Button
+                      variant="outline"
+                      onClick={() => handlePageChange(pagination.currentPage - 1)}
+                      disabled={!pagination.hasPrevious}
+                    >
+                      Previous
+                    </Button>
+                    
+                    <div className="flex items-center gap-1">
+                      {[...Array(Math.min(5, pagination.totalPages))].map((_, i) => {
+                        const pageNum = pagination.currentPage - 2 + i
+                        if (pageNum < 0 || pageNum >= pagination.totalPages) return null
+                        
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={pageNum === pagination.currentPage ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => handlePageChange(pageNum)}
+                          >
+                            {pageNum + 1}
+                          </Button>
+                        )
+                      })}
+                    </div>
+                    
+                    <Button
+                      variant="outline"
+                      onClick={() => handlePageChange(pagination.currentPage + 1)}
+                      disabled={!pagination.hasNext}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="text-center py-12">
                 <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -404,17 +540,20 @@ export default function PropertiesPage() {
                 <p className="text-gray-500 mb-6">
                   Try adjusting your filters or search criteria
                 </p>
-                <Button onClick={clearFilters} variant="outline">
+                {metadata?.suggestions && metadata.suggestions.length > 0 && (
+                  <div className="mb-6">
+                    <p className="text-sm text-gray-600 mb-2">Suggestions:</p>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {metadata.suggestions.map((suggestion, i) => (
+                        <span key={i} className="px-3 py-1 bg-gray-100 rounded-full text-sm">
+                          {suggestion}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <Button onClick={clearAllFilters} variant="outline">
                   Clear All Filters
-                </Button>
-              </div>
-            )}
-
-            {/* Load More */}
-            {filteredProperties.length > 0 && (
-              <div className="mt-12 text-center">
-                <Button variant="outline" size="lg">
-                  Load More Properties
                 </Button>
               </div>
             )}

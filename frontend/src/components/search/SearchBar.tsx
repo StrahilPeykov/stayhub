@@ -1,40 +1,86 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
-import { Calendar, MapPin, Users, Search, Loader2 } from 'lucide-react'
+import { Calendar, MapPin, Users, Search, Loader2, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { GuestSelector } from '@/components/search/GuestSelector'
 import { LocationSearch } from '@/components/search/LocationSearch'
+import { propertyService, PropertySearchRequest } from '@/services/propertyService'
 import { useAnalytics } from '@/lib/hooks/useAnalytics'
-import { cn } from '@/lib/utils'
+import { cn, debounce } from '@/lib/utils'
 
-export function SearchBar({ className }: { className?: string }) {
+interface SearchBarProps {
+  className?: string
+  defaultValues?: Partial<PropertySearchRequest>
+  onSearch?: (searchRequest: PropertySearchRequest) => void
+  showQuickFilters?: boolean
+  compact?: boolean
+}
+
+export function SearchBar({ 
+  className,
+  defaultValues,
+  onSearch,
+  showQuickFilters = false,
+  compact = false
+}: SearchBarProps) {
   const router = useRouter()
   const { track } = useAnalytics()
   const [isSearching, setIsSearching] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [suggestions, setSuggestions] = useState<any[]>([])
   const searchRef = useRef<HTMLDivElement>(null)
   
-  const [location, setLocation] = useState('')
+  // Search state
+  const [searchRequest, setSearchRequest] = useState<PropertySearchRequest>({
+    search: defaultValues?.search || '',
+    city: defaultValues?.city || '',
+    checkIn: defaultValues?.checkIn || '',
+    checkOut: defaultValues?.checkOut || '',
+    guests: defaultValues?.guests || 2,
+    rooms: defaultValues?.rooms || 1,
+    ...defaultValues
+  })
+
+  // Date range state for the date picker
   const [dateRange, setDateRange] = useState<{
     from: Date | undefined
     to: Date | undefined
   }>({
-    from: undefined,
-    to: undefined,
+    from: searchRequest.checkIn ? new Date(searchRequest.checkIn) : undefined,
+    to: searchRequest.checkOut ? new Date(searchRequest.checkOut) : undefined,
   })
-  const [guests, setGuests] = useState(2)
-  const [rooms, setRooms] = useState(1)
 
-  // Handle click outside to close expanded state
+  // Debounced suggestion fetching
+  const fetchSuggestions = useCallback(
+    debounce(async (query: string) => {
+      if (query.length < 2) {
+        setSuggestions([])
+        return
+      }
+
+      try {
+        const results = await propertyService.getSearchSuggestions(query, 8)
+        setSuggestions(results)
+      } catch (error) {
+        console.error('Failed to fetch suggestions:', error)
+        setSuggestions([])
+      }
+    }, 300),
+    []
+  )
+
+  // Handle click outside to close suggestions
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setIsFocused(false)
+        setShowSuggestions(false)
       }
     }
 
@@ -42,36 +88,136 @@ export function SearchBar({ className }: { className?: string }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // Update date range when search request changes
+  useEffect(() => {
+    setDateRange({
+      from: searchRequest.checkIn ? new Date(searchRequest.checkIn) : undefined,
+      to: searchRequest.checkOut ? new Date(searchRequest.checkOut) : undefined,
+    })
+  }, [searchRequest.checkIn, searchRequest.checkOut])
+
+  // Handle location input change
+  const handleLocationChange = (value: string) => {
+    setSearchRequest(prev => ({ ...prev, search: value, city: value }))
+    fetchSuggestions(value)
+    setShowSuggestions(true)
+  }
+
+  // Handle location suggestion selection
+  const handleSuggestionSelect = (suggestion: any) => {
+    if (suggestion.type === 'city') {
+      setSearchRequest(prev => ({ 
+        ...prev, 
+        search: suggestion.name,
+        city: suggestion.name,
+        country: suggestion.country 
+      }))
+    } else if (suggestion.type === 'property') {
+      setSearchRequest(prev => ({ 
+        ...prev, 
+        search: suggestion.name 
+      }))
+    }
+    setShowSuggestions(false)
+    setIsFocused(false)
+  }
+
+  // Handle date range change
+  const handleDateChange = (range: { from: Date | undefined; to: Date | undefined }) => {
+    setDateRange(range)
+    setSearchRequest(prev => ({
+      ...prev,
+      checkIn: range.from ? format(range.from, 'yyyy-MM-dd') : '',
+      checkOut: range.to ? format(range.to, 'yyyy-MM-dd') : '',
+    }))
+  }
+
+  // Handle guest count change
+  const handleGuestChange = (guests: number, rooms: number) => {
+    setSearchRequest(prev => ({ ...prev, guests, rooms }))
+  }
+
+  // Handle search execution
   const handleSearch = async () => {
-    if (!location || !dateRange.from || !dateRange.to) {
+    if (!searchRequest.search && !searchRequest.city) {
       return
     }
 
     setIsSearching(true)
 
-    // Track search event
-    track('search_initiated', {
-      location,
-      checkIn: format(dateRange.from, 'yyyy-MM-dd'),
-      checkOut: format(dateRange.to, 'yyyy-MM-dd'),
-      guests,
-      rooms,
-    })
+    try {
+      // Track search event
+      track('search_initiated', {
+        location: searchRequest.search || searchRequest.city,
+        checkIn: searchRequest.checkIn,
+        checkOut: searchRequest.checkOut,
+        guests: searchRequest.guests,
+        rooms: searchRequest.rooms,
+        hasDateRange: !!(searchRequest.checkIn && searchRequest.checkOut),
+      })
 
-    // Navigate to search results
-    const params = new URLSearchParams({
-      location,
-      checkIn: format(dateRange.from, 'yyyy-MM-dd'),
-      checkOut: format(dateRange.to, 'yyyy-MM-dd'),
-      guests: guests.toString(),
-      rooms: rooms.toString(),
-    })
-
-    router.push(`/search?${params.toString()}`)
-    setIsSearching(false)
+      if (onSearch) {
+        // If callback provided, use it
+        onSearch(searchRequest)
+      } else {
+        // Otherwise, navigate to search results
+        const url = propertyService.buildSearchUrl(searchRequest)
+        router.push(url)
+      }
+    } catch (error) {
+      console.error('Search error:', error)
+    } finally {
+      setIsSearching(false)
+    }
   }
 
-  const isValid = location && dateRange.from && dateRange.to
+  // Clear search
+  const clearSearch = () => {
+    setSearchRequest({
+      search: '',
+      city: '',
+      checkIn: '',
+      checkOut: '',
+      guests: 2,
+      rooms: 1,
+    })
+    setDateRange({ from: undefined, to: undefined })
+    setSuggestions([])
+  }
+
+  const isValid = searchRequest.search || searchRequest.city
+  const hasContent = searchRequest.search || searchRequest.checkIn || searchRequest.guests > 2
+
+  if (compact) {
+    return (
+      <div className={cn("w-full max-w-md mx-auto", className)}>
+        <div className="relative">
+          <div className="flex items-center bg-white rounded-lg shadow-md border">
+            <div className="flex-1 px-4 py-3">
+              <LocationSearch
+                value={searchRequest.search || ''}
+                onChange={handleLocationChange}
+                placeholder="Where to?"
+                className="border-0 p-0 h-auto focus:ring-0"
+              />
+            </div>
+            <Button
+              onClick={handleSearch}
+              disabled={!isValid || isSearching}
+              size="sm"
+              className="m-1"
+            >
+              {isSearching ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Search className="w-4 h-4" />
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={cn("w-full max-w-5xl mx-auto", className)}>
@@ -90,7 +236,7 @@ export function SearchBar({ className }: { className?: string }) {
         <div className="p-3">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
             {/* Location Input */}
-            <div className="lg:col-span-4" onClick={() => setIsFocused(true)}>
+            <div className="lg:col-span-4 relative">
               <div className="relative h-14 group">
                 <div className={cn(
                   "absolute inset-0 rounded-xl transition-all duration-200 border",
@@ -102,14 +248,65 @@ export function SearchBar({ className }: { className?: string }) {
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium text-gray-600 mb-0.5">Where</div>
                     <LocationSearch
-                      value={location}
-                      onChange={setLocation}
+                      value={searchRequest.search || ''}
+                      onChange={handleLocationChange}
+                      onFocus={() => {
+                        setIsFocused(true)
+                        if (searchRequest.search) {
+                          fetchSuggestions(searchRequest.search)
+                          setShowSuggestions(true)
+                        }
+                      }}
                       placeholder="Search destinations"
                       className="bg-transparent border-0 p-0 h-auto focus:ring-0 text-sm text-gray-900 placeholder:text-gray-400"
                     />
                   </div>
+                  {searchRequest.search && (
+                    <button
+                      onClick={() => {
+                        setSearchRequest(prev => ({ ...prev, search: '', city: '' }))
+                        setSuggestions([])
+                      }}
+                      className="ml-2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
+
+              {/* Suggestions Dropdown */}
+              <AnimatePresence>
+                {showSuggestions && suggestions.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 z-50 max-h-60 overflow-y-auto"
+                  >
+                    {suggestions.map((suggestion, index) => (
+                      <button
+                        key={`${suggestion.type}-${suggestion.name}-${index}`}
+                        onClick={() => handleSuggestionSelect(suggestion)}
+                        className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 first:rounded-t-xl last:rounded-b-xl"
+                      >
+                        <div className="flex items-center gap-3">
+                          <MapPin className="w-4 h-4 text-gray-400" />
+                          <div>
+                            <div className="font-medium text-gray-900">{suggestion.name}</div>
+                            {suggestion.country && (
+                              <div className="text-sm text-gray-500">{suggestion.country}</div>
+                            )}
+                          </div>
+                          <span className="ml-auto text-xs text-gray-400 capitalize">
+                            {suggestion.type}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Date Range Picker */}
@@ -126,12 +323,23 @@ export function SearchBar({ className }: { className?: string }) {
                     <div className="text-xs font-medium text-gray-600 mb-0.5">When</div>
                     <DateRangePicker
                       value={dateRange}
-                      onChange={setDateRange}
+                      onChange={handleDateChange}
                       minDate={new Date()}
                       placeholder="Add dates"
                       className="bg-transparent border-0 p-0 h-auto focus:ring-0 text-sm text-gray-900"
                     />
                   </div>
+                  {(dateRange.from || dateRange.to) && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDateChange({ from: undefined, to: undefined })
+                      }}
+                      className="ml-2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -149,14 +357,14 @@ export function SearchBar({ className }: { className?: string }) {
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium text-gray-600 mb-0.5">Who</div>
                     <div className="text-sm text-gray-900">
-                      {guests} guest{guests !== 1 ? 's' : ''}, {rooms} room{rooms !== 1 ? 's' : ''}
+                      {searchRequest.guests} guest{searchRequest.guests !== 1 ? 's' : ''}, {searchRequest.rooms} room{searchRequest.rooms !== 1 ? 's' : ''}
                     </div>
                   </div>
                   <GuestSelector
-                    guests={guests}
-                    rooms={rooms}
-                    onGuestsChange={setGuests}
-                    onRoomsChange={setRooms}
+                    guests={searchRequest.guests || 2}
+                    rooms={searchRequest.rooms || 1}
+                    onGuestsChange={(guests) => handleGuestChange(guests, searchRequest.rooms || 1)}
+                    onRoomsChange={(rooms) => handleGuestChange(searchRequest.guests || 2, rooms)}
                     className="absolute inset-0 opacity-0 cursor-pointer"
                   />
                 </div>
@@ -184,6 +392,39 @@ export function SearchBar({ className }: { className?: string }) {
               </Button>
             </div>
           </div>
+
+          {/* Quick Actions */}
+          {hasContent && (
+            <div className="mt-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Quick clear:</span>
+                <button
+                  onClick={clearSearch}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Clear all
+                </button>
+              </div>
+              
+              {showQuickFilters && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">Quick filters:</span>
+                  <button
+                    onClick={() => setSearchRequest(prev => ({ ...prev, featured: true }))}
+                    className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-md font-medium"
+                  >
+                    Featured
+                  </button>
+                  <button
+                    onClick={() => setSearchRequest(prev => ({ ...prev, instantBooking: true }))}
+                    className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-md font-medium"
+                  >
+                    Instant Book
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </motion.div>
     </div>
