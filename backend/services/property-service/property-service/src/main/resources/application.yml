@@ -58,11 +58,12 @@ spring:
         order_inserts: true
         order_updates: true
         generate_statistics: false
-        cache:
-          use_second_level_cache: true
-          use_query_cache: true
-          region:
-            factory_class: org.hibernate.cache.jcache.JCacheRegionFactory
+        # Removed problematic JCache configuration
+        # cache:
+        #   use_second_level_cache: true
+        #   use_query_cache: true
+        #   region:
+        #     factory_class: org.hibernate.cache.jcache.JCacheRegionFactory
   
   # Enhanced cache configuration for search
   cache:
