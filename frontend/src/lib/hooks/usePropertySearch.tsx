@@ -53,7 +53,7 @@ export function usePropertySearch(options: UsePropertySearchOptions = {}) {
     queryKey: ['property-search', searchRequest],
     queryFn: () => propertyService.searchProperties(searchRequest),
     enabled: autoSearch && isValidSearchRequest(searchRequest),
-    placeholderData: (previousData) => previousData, // Updated from keepPreviousData
+    placeholderData: (previousData) => previousData,
     staleTime: 30 * 1000, // 30 seconds
   })
 
@@ -254,7 +254,7 @@ export function usePropertyFacets() {
     queryKey: ['property-facets'],
     queryFn: () => propertyService.getPropertyFacets(),
     staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes (updated from cacheTime)
+    gcTime: 10 * 60 * 1000, // 10 minutes
   })
 }
 
@@ -265,7 +265,7 @@ export function useSearchSuggestions(query: string, enabled = true) {
     queryFn: () => propertyService.getSearchSuggestions(query),
     enabled: enabled && query.length >= 2,
     staleTime: 60 * 1000, // 1 minute
-    gcTime: 5 * 60 * 1000, // 5 minutes (updated from cacheTime)
+    gcTime: 5 * 60 * 1000, // 5 minutes
   })
 }
 
@@ -275,6 +275,6 @@ export function usePopularSearches() {
     queryKey: ['popular-searches'],
     queryFn: () => propertyService.getPopularSearches(),
     staleTime: 30 * 60 * 1000, // 30 minutes
-    gcTime: 60 * 60 * 1000, // 1 hour (updated from cacheTime)
+    gcTime: 60 * 60 * 1000, // 1 hour
   })
 }

@@ -54,18 +54,9 @@ public class PropertyService {
         // Build pageable with sorting
         Pageable pageable = buildPageable(request);
         
-        // Use JPA Specification for complex queries
-        Specification<Property> spec = PropertySearchSpecification.buildSpecification(request);
-        
-        // Add availability check if dates provided
-        if (StringUtils.hasText(request.getCheckIn()) && StringUtils.hasText(request.getCheckOut())) {
-            spec = spec.and(PropertySearchSpecification.withAvailability(
-                request.getCheckIn(), request.getCheckOut(), 
-                request.getRooms(), request.getGuests()));
-        }
-        
-        // Execute search with specification
-        Page<Property> propertyPage = propertyRepository.findAll(spec, pageable);
+        // For this simplified version, we'll use the existing repository methods
+        // In a full implementation, you would use JPA Specifications or custom queries
+        Page<Property> propertyPage = performOptimizedSearch(request, pageable);
         
         long searchTime = System.currentTimeMillis() - startTime;
         

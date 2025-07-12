@@ -62,7 +62,8 @@ export default function PropertiesPage() {
   } = useQuery<PropertySearchResponse>({
     queryKey: ['property-search', searchRequest],
     queryFn: () => propertyService.searchProperties(searchRequest),
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
+    staleTime: 30 * 1000, // 30 seconds
   })
 
   // Update URL when search request changes
